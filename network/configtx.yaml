@@ -1,0 +1,167 @@
+# Copyright IBM Corp. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file configures the blockchain network's operational parameters
+# It defines consensus mechanisms, policies, and channel structure
+
+---
+# ORGANIZATIONS
+# Define each organization's policies and identities
+Organizations:
+  # Orderer Organization
+  - &OrdererOrg
+    Name: OrdererOrg
+    ID: OrdererMSP  # Membership Service Provider ID
+    MSPDir: crypto-config/ordererOrganizations/example.com/msp
+    
+    # Policies define WHO can do WHAT
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"  # Any orderer member can read
+      Writers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"  # Any orderer member can write
+      Admins:
+        Type: Signature
+        Rule: "OR('OrdererMSP.admin')"   # Only admins can manage
+    
+    # Orderer endpoints (where to connect)
+    OrdererEndpoints:
+      - orderer.example.com:7050
+
+  # Traffic Authority Organization
+  - &Org1
+    Name: Org1MSP
+    ID: Org1MSP
+    MSPDir: crypto-config/peerOrganizations/org1.example.com/msp
+    
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('Org1MSP.admin', 'Org1MSP.peer', 'Org1MSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('Org1MSP.admin', 'Org1MSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('Org1MSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('Org1MSP.peer')"  # Peers can endorse transactions
+
+# CAPABILITIES
+# Define what features are enabled in different parts of the network
+Capabilities:
+  Channel: &ChannelCapabilities
+    V2_0: true  # Use Fabric 2.0+ features
+  
+  Orderer: &OrdererCapabilities
+    V2_0: true
+  
+  Application: &ApplicationCapabilities
+    V2_5: true  # Latest chaincode features
+
+# APPLICATION (CHAINCODE) CONFIGURATION
+Application: &ApplicationDefaults
+  Organizations:
+  
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"  # Any org can read
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"  # Any org can write
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"  # Majority of admins must approve
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"  # Majority must endorse chaincode
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"  # Majority must endorse transactions
+  
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+# ORDERER CONFIGURATION
+Orderer: &OrdererDefaults
+  # OrdererType: How transactions are ordered
+  # Solo: Single orderer (development only)
+  # Raft: Crash fault-tolerant consensus (production ready)
+  OrdererType: solo
+  
+  Addresses:
+    - orderer.example.com:7050
+  
+  # Batch size and timing
+  BatchTimeout: 2s  # Wait max 2 seconds before creating a block
+  BatchSize:
+    MaxMessageCount: 10        # Max 10 transactions per block
+    AbsoluteMaxBytes: 99 MB    # Max block size
+    PreferredMaxBytes: 512 KB  # Preferred block size
+  
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"  # Any writer can validate blocks
+  
+  Capabilities:
+    <<: *OrdererCapabilities
+
+# CHANNEL CONFIGURATION
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+  
+  Capabilities:
+    <<: *ChannelCapabilities
+
+# PROFILES
+# These are templates used to create actual network artifacts
+Profiles:
+  # Genesis Block Profile
+  # This creates the initial blockchain configuration
+  TrafficOrdererGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities:
+        <<: *OrdererCapabilities
+    Consortiums:
+      TrafficConsortium:
+        Organizations:
+          - *Org1
+
+  # Channel Profile
+  # This defines the traffic-channel configuration
+  TrafficChannel:
+    Consortium: TrafficConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *Org1
+      Capabilities:
+        <<: *ApplicationCapabilities

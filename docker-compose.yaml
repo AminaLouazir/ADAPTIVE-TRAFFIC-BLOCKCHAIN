@@ -1,0 +1,113 @@
+version: '3.8'
+
+networks:
+  fabric-network:
+    name: fabric-network
+
+services:
+  # Traffic Simulator Service
+  traffic-simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: traffic-simulator
+    ports:
+      - "5000:5000"
+    environment:
+      - FABRIC_CA_SERVER=ca.org1.example.com:7054
+      - CHANNEL_NAME=traffic-channel
+      - CHAINCODE_NAME=traffic-light
+    volumes:
+      - ./simulator:/app
+      - ./simulator/data:/app/data
+      - $HOME/fabric-samples/config:/fabric/config
+    networks:
+      - fabric-network
+    depends_on:
+      - peer0.org1.example.com
+    command: python3 traffic_sim.py
+
+  # Visualization Dashboard
+  dashboard:
+    build:
+      context: ./visualization
+      dockerfile: Dockerfile
+    container_name: traffic-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_WS_URL=ws://localhost:5000
+    volumes:
+      - ./visualization:/app
+      - /app/node_modules
+    networks:
+      - fabric-network
+    depends_on:
+      - traffic-simulator
+
+  # API Backend (if separate from simulator)
+  api-server:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile.api
+    container_name: traffic-api
+    ports:
+      - "8080:8080"
+    environment:
+      - FABRIC_NETWORK=fabric-network
+      - DATABASE_URL=postgresql://user:pass@db:5432/traffic
+    networks:
+      - fabric-network
+    depends_on:
+      - peer0.org1.example.com
+
+  # PostgreSQL (optional - for storing analytics)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: traffic-db
+  #   environment:
+  #     - POSTGRES_USER=traffic
+  #     - POSTGRES_PASSWORD=traffic123
+  #     - POSTGRES_DB=trafficdb
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - fabric-network
+
+  # Hyperledger Explorer (optional - blockchain explorer)
+  explorer:
+    image: hyperledger/explorer:latest
+    container_name: blockchain-explorer
+    environment:
+      - DATABASE_HOST=explorer-db
+      - DATABASE_DATABASE=fabricexplorer
+      - DATABASE_USERNAME=hppoc
+      - DATABASE_PASSWD=password
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./network/explorer-config.json:/opt/explorer/app/platform/fabric/config.json
+      - ./network/crypto-config:/tmp/crypto
+    networks:
+      - fabric-network
+    depends_on:
+      - explorer-db
+
+  explorer-db:
+    image: hyperledger/explorer-db:latest
+    container_name: explorer-db
+    environment:
+      - DATABASE_DATABASE=fabricexplorer
+      - DATABASE_USERNAME=hppoc
+      - DATABASE_PASSWORD=password
+    volumes:
+      - explorer-db-data:/var/lib/postgresql/data
+    networks:
+      - fabric-network
+
+# volumes:
+#   postgres-data:
+#   explorer-db-data:

@@ -1,0 +1,45 @@
+# Copyright IBM Corp. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file defines the structure of your blockchain network's identity system
+# It tells cryptogen tool how to generate certificates for all participants
+
+# ORDERER ORGANIZATIONS
+# The orderer is like a postal service - it orders transactions chronologically
+OrdererOrgs:
+  - Name: Orderer
+    Domain: example.com
+    # Specs defines how many orderer nodes we want
+    Specs:
+      - Hostname: orderer
+    # EnableNodeOUs: Organizes identities into roles (admin, peer, client, orderer)
+    EnableNodeOUs: true
+
+# PEER ORGANIZATIONS
+# These are the actual participants in your traffic management system
+PeerOrgs:
+  # Organization 1: Traffic Authority
+  # This could be the main city traffic management department
+  - Name: Org1
+    Domain: org1.example.com
+    EnableNodeOUs: true
+    
+    # Template: Defines how many peer nodes this org has
+    # Count: 2 means we'll have peer0 and peer1
+    Template:
+      Count: 2
+    
+    # Users: Regular users who can submit transactions
+    # Count: 1 means 1 admin user + 1 regular user
+    Users:
+      Count: 1
+
+  # Organization 2: City Management (Optional - for multi-org scenarios)
+  # Uncomment if you want a second organization (e.g., emergency services)
+  # - Name: Org2
+  #   Domain: org2.example.com
+  #   EnableNodeOUs: true
+  #   Template:
+  #     Count: 2
+  #   Users:
+  #     Count: 1
