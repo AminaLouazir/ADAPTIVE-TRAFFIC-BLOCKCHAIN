@@ -55,23 +55,24 @@ fi
 
 echo -e "${GREEN}[✓]${NC} peer0.org1.example.com joined channel"
 
-# Join peer1 to channel
-echo -e "\n${YELLOW}[3/4]${NC} Joining peer1.org1.example.com to channel..."
+# Join peer0.org2 to channel
+echo -e "\n${YELLOW}[3/5]${NC} Joining peer0.org2.example.com to channel..."
 docker exec \
-    -e CORE_PEER_ADDRESS=peer1.org1.example.com:8051 \
-    -e CORE_PEER_LOCALMSPID=Org1MSP \
-    -e CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp \
+    -e CORE_PEER_ADDRESS=peer0.org2.example.com:9051 \
+    -e CORE_PEER_LOCALMSPID=Org2MSP \
+    -e CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp \
     cli peer channel join \
     -b /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/${CHANNEL_NAME}.block
 
 if [ "$?" -ne 0 ]; then
-    echo -e "${YELLOW}[WARNING]${NC} Failed to join peer1 to channel (not critical)"
-else
-    echo -e "${GREEN}[✓]${NC} peer1.org1.example.com joined channel"
+    echo -e "${RED}[ERROR]${NC} Failed to join peer0.org2 to channel"
+    exit 1
 fi
 
-# Update anchor peers (optional)
-echo -e "\n${YELLOW}[4/4]${NC} Updating anchor peers..."
+echo -e "${GREEN}[✓]${NC} peer0.org2.example.com joined channel"
+
+# Update anchor peers for Org1
+echo -e "\n${YELLOW}[4/5]${NC} Updating anchor peers for Org1..."
 if [ -f "../channel-artifacts/Org1MSPanchors.tx" ]; then
     docker exec cli peer channel update \
         -o orderer.example.com:7050 \
@@ -79,12 +80,33 @@ if [ -f "../channel-artifacts/Org1MSPanchors.tx" ]; then
         -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/Org1MSPanchors.tx
     
     if [ "$?" -ne 0 ]; then
-        echo -e "${YELLOW}[WARNING]${NC} Failed to update anchor peers (optional)"
+        echo -e "${YELLOW}[WARNING]${NC} Failed to update Org1 anchor peers (optional)"
     else
-        echo -e "${GREEN}[✓]${NC} Anchor peers updated"
+        echo -e "${GREEN}[✓]${NC} Org1 anchor peers updated"
     fi
 else
-    echo -e "${YELLOW}[SKIP]${NC} Anchor peers file not found"
+    echo -e "${YELLOW}[SKIP]${NC} Org1 anchor peers file not found"
+fi
+
+# Update anchor peers for Org2
+echo -e "\n${YELLOW}[5/5]${NC} Updating anchor peers for Org2..."
+if [ -f "../channel-artifacts/Org2MSPanchors.tx" ]; then
+    docker exec \
+        -e CORE_PEER_ADDRESS=peer0.org2.example.com:9051 \
+        -e CORE_PEER_LOCALMSPID=Org2MSP \
+        -e CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp \
+        cli peer channel update \
+        -o orderer.example.com:7050 \
+        -c $CHANNEL_NAME \
+        -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/Org2MSPanchors.tx
+    
+    if [ "$?" -ne 0 ]; then
+        echo -e "${YELLOW}[WARNING]${NC} Failed to update Org2 anchor peers (optional)"
+    else
+        echo -e "${GREEN}[✓]${NC} Org2 anchor peers updated"
+    fi
+else
+    echo -e "${YELLOW}[SKIP]${NC} Org2 anchor peers file not found"
 fi
 
 # List channels
@@ -97,7 +119,8 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${YELLOW}Channel Information:${NC}"
 echo "  • Channel Name: ${CHANNEL_NAME}"
-echo "  • Peers Joined: peer0, peer1"
+echo "  • Org1 Peer Joined: peer0.org1.example.com"
+echo "  • Org2 Peer Joined: peer0.org2.example.com"
 echo "  • Status: Active"
 echo ""
 echo -e "${YELLOW}Next Step:${NC} Deploy chaincode with ${GREEN}./deploy-chaincode.sh${NC}"

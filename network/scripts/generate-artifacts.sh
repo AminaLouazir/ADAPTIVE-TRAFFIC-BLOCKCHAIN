@@ -76,13 +76,23 @@ fi
 echo -e "${GREEN}[✓]${NC} Channel configuration generated"
 
 # Generate anchor peer update for Org1
-echo -e "\n${YELLOW}[OPTIONAL]${NC} Generating anchor peer update for Org1MSP..."
+echo -e "\n${YELLOW}[5/6]${NC} Generating anchor peer update for Org1MSP..."
 configtxgen -profile TrafficChannel -outputAnchorPeersUpdate ./channel-artifacts/Org1MSPanchors.tx -channelID $CHANNEL_NAME -asOrg Org1MSP 2>/dev/null
 
 if [ "$?" -ne 0 ]; then
-    echo -e "${YELLOW}[WARNING]${NC} Failed to generate anchor peer update (optional - not critical)"
+    echo -e "${YELLOW}[WARNING]${NC} Failed to generate Org1 anchor peer update (optional)"
 else
-    echo -e "${GREEN}[✓]${NC} Anchor peer update generated"
+    echo -e "${GREEN}[✓]${NC} Org1 anchor peer update generated"
+fi
+
+# Generate anchor peer update for Org2
+echo -e "\n${YELLOW}[6/6]${NC} Generating anchor peer update for Org2MSP..."
+configtxgen -profile TrafficChannel -outputAnchorPeersUpdate ./channel-artifacts/Org2MSPanchors.tx -channelID $CHANNEL_NAME -asOrg Org2MSP 2>/dev/null
+
+if [ "$?" -ne 0 ]; then
+    echo -e "${YELLOW}[WARNING]${NC} Failed to generate Org2 anchor peer update (optional)"
+else
+    echo -e "${GREEN}[✓]${NC} Org2 anchor peer update generated"
 fi
 
 echo -e "\n${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
@@ -93,7 +103,12 @@ echo -e "${YELLOW}Generated Files:${NC}"
 echo "  • Crypto materials: crypto-config/"
 echo "  • Genesis block: channel-artifacts/genesis.block"
 echo "  • Channel tx: channel-artifacts/traffic-channel.tx"
-echo "  • Anchor peers: channel-artifacts/Org1MSPanchors.tx"
+echo "  • Org1 Anchor peers: channel-artifacts/Org1MSPanchors.tx"
+echo "  • Org2 Anchor peers: channel-artifacts/Org2MSPanchors.tx"
+echo ""
+echo -e "${YELLOW}Organizations:${NC}"
+echo "  • Org1 (Traffic Authority): peer0.org1.example.com"
+echo "  • Org2 (Emergency Services): peer0.org2.example.com"
 echo ""
 echo -e "${YELLOW}Next Step:${NC} Run ${GREEN}./network-up.sh${NC} to start the network"
 echo ""

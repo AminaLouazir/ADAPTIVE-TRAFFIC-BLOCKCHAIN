@@ -19,27 +19,31 @@ OrdererOrgs:
 # These are the actual participants in your traffic management system
 PeerOrgs:
   # Organization 1: Traffic Authority
-  # This could be the main city traffic management department
+  # Main city traffic management department
   - Name: Org1
     Domain: org1.example.com
     EnableNodeOUs: true
     
     # Template: Defines how many peer nodes this org has
-    # Count: 2 means we'll have peer0 and peer1
+    # Count: 1 means we'll have peer0 only
     Template:
-      Count: 2
+      Count: 1
     
     # Users: Regular users who can submit transactions
     # Count: 1 means 1 admin user + 1 regular user
     Users:
       Count: 1
 
-  # Organization 2: City Management (Optional - for multi-org scenarios)
-  # Uncomment if you want a second organization (e.g., emergency services)
-  # - Name: Org2
-  #   Domain: org2.example.com
-  #   EnableNodeOUs: true
-  #   Template:
-  #     Count: 2
-  #   Users:
-  #     Count: 1
+  # Organization 2: Emergency Services
+  # Handles emergency vehicle priority and validates traffic decisions
+  - Name: Org2
+    Domain: org2.example.com
+    EnableNodeOUs: true
+    
+    # Template: 1 peer node for Org2
+    Template:
+      Count: 1
+    
+    # Users: Regular users who can submit transactions
+    Users:
+      Count: 1
