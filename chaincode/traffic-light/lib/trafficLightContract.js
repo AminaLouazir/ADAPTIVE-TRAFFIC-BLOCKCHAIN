@@ -232,18 +232,16 @@ class TrafficLightContract extends Contract {
 
     /**
      * Get all intersections
+     * Uses key range query (LevelDB compatible)
      * 
      * @param {Context} ctx - Transaction context
      */
     async getAllIntersections(ctx) {
-        const query = {
-            selector: {
-                docType: 'intersection'
-            }
-        };
-
-        const results = await this._getQueryResults(ctx, JSON.stringify(query));
-        return JSON.stringify(results);
+        // Use key range query - intersections have IDs like "INT-001", "INT-002"
+        const results = await this._getAllByKeyRange(ctx, 'INT-', 'INT-\uffff');
+        // Filter to only include intersection documents
+        const intersections = results.filter(item => item.docType === 'intersection');
+        return JSON.stringify(intersections);
     }
 
     /**
@@ -278,36 +276,30 @@ class TrafficLightContract extends Contract {
 
     /**
      * Get all traffic lights
+     * Uses key range query (LevelDB compatible)
      * 
      * @param {Context} ctx - Transaction context
      */
     async getAllTrafficLights(ctx) {
-        const query = {
-            selector: {
-                docType: 'trafficLight'
-            }
-        };
-
-        const results = await this._getQueryResults(ctx, JSON.stringify(query));
-        return JSON.stringify(results);
+        // Traffic lights have IDs like "INT-001-NORTH", "INT-001-SOUTH"
+        const results = await this._getAllByKeyRange(ctx, 'INT-', 'INT-\uffff');
+        // Filter to only include traffic light documents
+        const lights = results.filter(item => item.docType === 'trafficLight');
+        return JSON.stringify(lights);
     }
 
     /**
      * Get all traffic lights for an intersection
+     * Uses direct key lookup (LevelDB compatible)
      * 
      * @param {Context} ctx - Transaction context
      * @param {string} intersectionId - Intersection ID
      */
     async getIntersectionLights(ctx, intersectionId) {
-        const query = {
-            selector: {
-                docType: 'trafficLight',
-                intersectionId: intersectionId
-            }
-        };
-
-        const results = await this._getQueryResults(ctx, JSON.stringify(query));
-        return JSON.stringify(results);
+        // Traffic lights have IDs like "INT-001-NORTH", "INT-001-SOUTH"
+        const results = await this._getAllByKeyRange(ctx, `${intersectionId}-`, `${intersectionId}-\uffff`);
+        const lights = results.filter(item => item.docType === 'trafficLight');
+        return JSON.stringify(lights);
     }
 
     // ==================== SIGNAL CONTROL ====================
@@ -597,38 +589,35 @@ class TrafficLightContract extends Contract {
 
     /**
      * Get decision history for an intersection
+     * Uses key range query (LevelDB compatible)
      * 
      * @param {Context} ctx - Transaction context
      * @param {string} intersectionId - Intersection ID
      */
     async getDecisionHistory(ctx, intersectionId) {
-        const query = {
-            selector: {
-                docType: 'decision',
-                intersectionId: intersectionId
-            },
-            sort: [{ timestamp: 'desc' }]
-        };
-
-        const results = await this._getQueryResults(ctx, JSON.stringify(query));
-        return JSON.stringify(results);
+        // Decisions have IDs like "decision_timestamp_type"
+        const results = await this._getAllByKeyRange(ctx, 'decision_', 'decision_\uffff');
+        // Filter by intersection ID
+        const decisions = results.filter(item => 
+            item.docType === 'decision' && item.intersectionId === intersectionId
+        );
+        // Sort by timestamp descending
+        decisions.sort((a, b) => b.timestamp - a.timestamp);
+        return JSON.stringify(decisions);
     }
 
     /**
      * Get all decisions
+     * Uses key range query (LevelDB compatible)
      * 
      * @param {Context} ctx - Transaction context
      */
     async getAllDecisions(ctx) {
-        const query = {
-            selector: {
-                docType: 'decision'
-            },
-            sort: [{ timestamp: 'desc' }]
-        };
-
-        const results = await this._getQueryResults(ctx, JSON.stringify(query));
-        return JSON.stringify(results);
+        const results = await this._getAllByKeyRange(ctx, 'decision_', 'decision_\uffff');
+        const decisions = results.filter(item => item.docType === 'decision');
+        // Sort by timestamp descending
+        decisions.sort((a, b) => b.timestamp - a.timestamp);
+        return JSON.stringify(decisions);
     }
 
     // ==================== HELPER FUNCTIONS ====================
@@ -692,6 +681,33 @@ class TrafficLightContract extends Contract {
      */
     async _getQueryResults(ctx, queryString) {
         const iterator = await ctx.stub.getQueryResult(queryString);
+        const results = [];
+
+        let result = await iterator.next();
+        while (!result.done) {
+            const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
+            try {
+                results.push(JSON.parse(strValue));
+            } catch (err) {
+                console.log(err);
+                results.push(strValue);
+            }
+            result = await iterator.next();
+        }
+        await iterator.close();
+
+        return results;
+    }
+
+    /**
+     * Get all items by key range (LevelDB compatible)
+     * @param {Context} ctx - Transaction context
+     * @param {string} startKey - Start of key range
+     * @param {string} endKey - End of key range
+     * @returns {Array} Results
+     */
+    async _getAllByKeyRange(ctx, startKey, endKey) {
+        const iterator = await ctx.stub.getStateByRange(startKey, endKey);
         const results = [];
 
         let result = await iterator.next();

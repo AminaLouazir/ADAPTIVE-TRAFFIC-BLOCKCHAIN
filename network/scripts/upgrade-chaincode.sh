@@ -17,8 +17,8 @@ echo ""
 
 export CHANNEL_NAME=traffic-channel
 export CHAINCODE_NAME=traffic-light
-export CHAINCODE_VERSION=1.2
-export CHAINCODE_SEQUENCE=3
+export CHAINCODE_VERSION=1.1
+export CHAINCODE_SEQUENCE=2
 export CHAINCODE_PATH=/opt/gopath/src/github.com/chaincode/traffic-light
 export CHAINCODE_LANG=node
 
