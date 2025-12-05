@@ -1,0 +1,19 @@
+{
+  "name": "traffic-light-chaincode",
+  "version": "1.2.0",
+  "description": "Adaptive Traffic Light Smart Contract with Cellular Automaton Hash Functions",
+  "main": "index.js",
+  "scripts": {
+    "start": "fabric-chaincode-node start",
+    "test": "node test/test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "fabric-contract-api": "^2.5.0",
+    "fabric-shim": "^2.5.0"
+  },
+  "author": "Amina Louazir",
+  "license": "Apache-2.0"
+}
