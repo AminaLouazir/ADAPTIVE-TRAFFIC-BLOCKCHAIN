@@ -1,2 +1,4 @@
 node_modules/
 chaincode/traffic-light/node_modules/
+*.block
+
