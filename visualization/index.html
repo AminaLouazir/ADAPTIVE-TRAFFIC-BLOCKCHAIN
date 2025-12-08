@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚦 Traffic Management Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .traffic-light {
+            width: 150px;
+            height: 150px;
+            margin: 20px auto;
+            background: #333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            transition: all 0.5s;
+        }
+
+        .traffic-light.GREEN {
+            background: #4ade80;
+            box-shadow: 0 0 40px #4ade80;
+        }
+
+        .traffic-light.YELLOW {
+            background: #fbbf24;
+            box-shadow: 0 0 40px #fbbf24;
+        }
+
+        .traffic-light.RED {
+            background: #ef4444;
+            box-shadow: 0 0 40px #ef4444;
+        }
+
+        .traffic-light.EMERGENCY {
+            background: #f97316;
+            box-shadow: 0 0 40px #f97316;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .status-text {
+            font-size: 2em;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .metric-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e5e7eb;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status-dot.connected {
+            background: #4ade80;
+            box-shadow: 0 0 10px #4ade80;
+        }
+
+        .controls {
+            display: grid;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-emergency {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-emergency:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+
+        .btn-reset {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-reset:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #1f2937;
+            color: #10b981;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 0.9em;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #667eea;
+            padding-left: 10px;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🚦 Adaptive Traffic Management</h1>
+            <p class="subtitle">Real-time Blockchain-Powered Traffic Control</p>
+        </header>
+
+        <div id="errorContainer"></div>
+
+        <div class="dashboard">
+            <!-- Traffic Light Card -->
+            <div class="card">
+                <h2>Current Status</h2>
+                <div class="traffic-light" id="trafficLight">
+                    <div class="status-text" id="statusText2">---</div>
+                </div>
+                <div style="text-align: center; color: #666; margin-top: 10px;">
+                    Intersection: <strong id="intersection">Main & 1st</strong>
+                </div>
+            </div>
+
+            <!-- Metrics Card -->
+            <div class="card">
+                <h2>Traffic Metrics</h2>
+                <div class="metric">
+                    <span class="metric-label">Traffic Density</span>
+                    <span class="metric-value" id="density">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="densityBar" style="width: 0%">0%</div>
+                </div>
+
+                <div class="metric" style="margin-top: 15px;">
+                    <span class="metric-label">Queue Length</span>
+                    <span class="metric-value" id="queueLength">0</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Avg Wait Time</span>
+                    <span class="metric-value" id="waitTime">0s</span>
+                </div>
+            </div>
+
+            <!-- Controls Card -->
+            <div class="card">
+                <h2>Control Panel</h2>
+                <div class="controls">
+                    <button class="btn-emergency" onclick="triggerEmergency()">
+                        🚨 Emergency Mode
+                    </button>
+                    <button class="btn-reset" onclick="resetSystem()">
+                        🔄 Reset System
+                    </button>
+                </div>
+            </div>
+
+            <!-- Activity Log Card -->
+            <div class="card" style="grid-column: 1 / -1;">
+                <h2>Activity Log</h2>
+                <div class="log" id="activityLog">
+                    <div class="log-entry">System initializing...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const WS_URL = 'ws://localhost:3000';
+        const API_URL = 'http://localhost:3000';
+        let ws;
+        let reconnectInterval;
+
+        function showError(message) {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `
+                <div class="error-message">
+                    <strong>⚠️ Connection Error:</strong> ${message}
+                    <br><small>Make sure the backend server is running on port 3000</small>
+                </div>
+            `;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(WS_URL);
+
+                ws.onopen = () => {
+                    console.log('✅ WebSocket connected');
+                    document.getElementById('statusDot').classList.add('connected');
+                    document.getElementById('statusText').textContent = 'Connected';
+                    addLog('Connected to traffic server');
+                    clearError();
+                    
+                    if (reconnectInterval) {
+                        clearInterval(reconnectInterval);
+                        reconnectInterval = null;
+                    }
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.data) {
+                            updateDashboard(message.data);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                    }
+                };
+
+                ws.onclose = () => {
+                    console.log('❌ WebSocket disconnected');
+                    document.getElementById('statusDot').classList.remove('connected');
+                    document.getElementById('statusText').textContent = 'Disconnected';
+                    addLog('Disconnected from server, attempting reconnect...');
+                    showError('Lost connection to server. Reconnecting...');
+                    
+                    // Attempt to reconnect every 3 seconds
+                    if (!reconnectInterval) {
+                        reconnectInterval = setInterval(() => {
+                            console.log('Attempting to reconnect...');
+                            connectWebSocket();
+                        }, 3000);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    addLog('Connection error occurred');
+                    showError('Cannot connect to backend server. Is it running on port 3000?');
+                };
+            } catch (error) {
+                console.error('Failed to create WebSocket:', error);
+                showError('Cannot connect to backend server. Is it running on port 3000?');
+            }
+        }
+
+        function updateDashboard(data) {
+            // Update traffic light
+            const light = document.getElementById('trafficLight');
+            const statusText = document.getElementById('statusText2');
+            light.className = `traffic-light ${data.status}`;
+            statusText.textContent = data.status;
+
+            // Update metrics
+            document.getElementById('density').textContent = `${data.density}%`;
+            document.getElementById('densityBar').style.width = `${data.density}%`;
+            document.getElementById('densityBar').textContent = `${data.density}%`;
+            document.getElementById('queueLength').textContent = data.queueLength || 0;
+            document.getElementById('waitTime').textContent = `${data.avgWaitTime || 0}s`;
+
+            // Add to log
+            addLog(`Status: ${data.status} | Density: ${data.density}%`);
+        }
+
+        function addLog(message) {
+            const log = document.getElementById('activityLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+
+            // Keep only last 20 entries
+            while (log.children.length > 20) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        async function triggerEmergency() {
+            try {
+                const response = await fetch(`${API_URL}/api/traffic/emergency`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                addLog('🚨 EMERGENCY MODE ACTIVATED');
+            } catch (error) {
+                console.error('Error:', error);
+                addLog('Failed to activate emergency mode');
+                showError('Cannot reach backend API');
+            }
+        }
+
+        async function resetSystem() {
+            try {
+                const response = await fetch(`${API_URL}/api/traffic/override`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'GREEN', density: 20 })
+                });
+                const data = await response.json();
+                addLog('✅ System reset to normal operation');
+            } catch (error) {
+                console.error('Error:', error);
+                addLog('Failed to reset system');
+                showError('Cannot reach backend API');
+            }
+        }
+
+        // Initialize connection
+        connectWebSocket();
+    </script>
+</body>
+</html>
