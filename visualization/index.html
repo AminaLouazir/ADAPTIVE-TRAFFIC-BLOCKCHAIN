@@ -483,8 +483,28 @@
         let animationSpeed = 5;
         let cycleStartTime = Date.now();
 
+        // Traffic light state for each direction
+        let lightStates = {
+            north: 'GREEN',
+            south: 'GREEN',
+            east: 'RED',
+            west: 'RED'
+        };
+
         const carEmojis = ['🚗', '🚕', '🚙', '🚐', '🚓', '🚑'];
         const carColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444'];
+
+        // Stop line positions (where cars should stop at red light)
+        const STOP_LINES = {
+            north: 250,  // Stop before entering center
+            south: 250,
+            east: 250,
+            west: 250
+        };
+
+        // Intersection center zone (cars can pass through)
+        const INTERSECTION_START = 250;
+        const INTERSECTION_END = 450;
 
         function connectWebSocket() {
             try {
@@ -526,7 +546,8 @@
                 element: car,
                 direction: direction,
                 position: 0,
-                waiting: false
+                waiting: false,
+                passedIntersection: false
             };
             
             cars.push(carData);
@@ -535,6 +556,13 @@
             document.getElementById('carCount').textContent = cars.length;
             addLog(`Vehicle added from ${direction}`);
         }
+
+        // Track which direction currently has green
+        let currentGreenDirection = 'north-south'; // or 'east-west'
+        let lastDirectionChange = Date.now();
+        let isYellowPhase = false;
+        const GREEN_DURATION = 8000; // Green for 8 seconds
+        const YELLOW_DURATION = 2000; // Yellow for 2 seconds
 
         function updateTrafficLights(status) {
             currentLightState = status;
@@ -545,25 +573,85 @@
                 light.className = 'light';
             });
 
-            // Update lights based on status
-            const activeClass = status === 'GREEN' ? 'active-green' : 
-                               status === 'YELLOW' ? 'active-yellow' : 
-                               status === 'RED' ? 'active-red' : 'active-red';
+            const now = Date.now();
+            const timeSinceChange = now - lastDirectionChange;
 
-            // North-South gets the status
-            document.getElementById(`light-north-${status.toLowerCase()}`).classList.add(activeClass);
-            document.getElementById(`light-south-${status.toLowerCase()}`).classList.add(activeClass);
+            // Handle emergency
+            if (status === 'EMERGENCY') {
+                lightStates = { north: 'RED', south: 'RED', east: 'RED', west: 'RED' };
+                isYellowPhase = false;
+            }
+            // Check if we should switch to yellow phase
+            else if (timeSinceChange > GREEN_DURATION && !isYellowPhase) {
+                isYellowPhase = true;
+                addLog(`🟡 Yellow light warning for ${currentGreenDirection.toUpperCase()}`);
+                
+                // Current direction gets yellow, opposite stays red
+                if (currentGreenDirection === 'north-south') {
+                    lightStates = { north: 'YELLOW', south: 'YELLOW', east: 'RED', west: 'RED' };
+                } else {
+                    lightStates = { north: 'RED', south: 'RED', east: 'YELLOW', west: 'YELLOW' };
+                }
+            }
+            // Check if we should switch directions
+            else if (timeSinceChange > GREEN_DURATION + YELLOW_DURATION) {
+                // Switch to opposite direction
+                currentGreenDirection = currentGreenDirection === 'north-south' ? 'east-west' : 'north-south';
+                lastDirectionChange = now;
+                isYellowPhase = false;
+                addLog(`🟢 Green light for ${currentGreenDirection.toUpperCase()}`);
+                
+                // New direction gets green, opposite gets red
+                if (currentGreenDirection === 'north-south') {
+                    lightStates = { north: 'GREEN', south: 'GREEN', east: 'RED', west: 'RED' };
+                } else {
+                    lightStates = { north: 'RED', south: 'RED', east: 'GREEN', west: 'GREEN' };
+                }
+            }
+            // Continue with current green phase
+            else if (!isYellowPhase) {
+                if (currentGreenDirection === 'north-south') {
+                    lightStates = { north: 'GREEN', south: 'GREEN', east: 'RED', west: 'RED' };
+                } else {
+                    lightStates = { north: 'RED', south: 'RED', east: 'GREEN', west: 'GREEN' };
+                }
+            }
 
-            // East-West gets opposite
-            const oppositeStatus = status === 'GREEN' ? 'RED' : status === 'RED' ? 'GREEN' : 'YELLOW';
-            document.getElementById(`light-east-${oppositeStatus.toLowerCase()}`).classList.add(`active-${oppositeStatus.toLowerCase()}`);
-            document.getElementById(`light-west-${oppositeStatus.toLowerCase()}`).classList.add(`active-${oppositeStatus.toLowerCase()}`);
+            // Apply light states to UI
+            for (const [direction, state] of Object.entries(lightStates)) {
+                const lightClass = `active-${state.toLowerCase()}`;
+                document.getElementById(`light-${direction}-${state.toLowerCase()}`).classList.add(lightClass);
+            }
         }
 
-        function updateStats(data) {
-            document.getElementById('density').textContent = `${data.density}%`;
-            document.getElementById('queueLength').textContent = data.queueLength || 0;
-            document.getElementById('waitTime').textContent = `${data.avgWaitTime || 0}s`;
+        function canCarMove(car) {
+            // Emergency vehicles can always move
+            if (currentLightState === 'EMERGENCY' && car.element.textContent === '🚑') {
+                return true;
+            }
+
+            // If car hasn't reached the stop line yet, it can move
+            if (car.position < STOP_LINES[car.direction]) {
+                return true;
+            }
+
+            // If car is already past the intersection, it can move
+            if (car.passedIntersection) {
+                return true;
+            }
+
+            // Check if the light is green for this direction
+            const myLight = lightStates[car.direction];
+            
+            // Can ONLY move if light is GREEN
+            if (myLight === 'GREEN') {
+                car.waiting = false;
+                return true;
+            }
+
+            // YELLOW or RED light - must stop and wait
+            car.waiting = true;
+            return false;
         }
 
         function moveCars() {
@@ -576,10 +664,15 @@
                     return;
                 }
 
-                const canMove = currentLightState === 'GREEN' || currentLightState === 'EMERGENCY';
-                
-                if (canMove || car.position < 200) {
+                // Check if car can move
+                if (canCarMove(car)) {
                     car.position += animationSpeed;
+                    car.waiting = false;
+
+                    // Mark car as having passed intersection
+                    if (car.position > INTERSECTION_END && !car.passedIntersection) {
+                        car.passedIntersection = true;
+                    }
                 }
 
                 // Move based on direction
@@ -604,6 +697,10 @@
             });
 
             document.getElementById('carCount').textContent = cars.length;
+            
+            // Update queue length (cars waiting at red lights)
+            const waitingCars = cars.filter(c => c.waiting).length;
+            document.getElementById('queueLength').textContent = waitingCars;
         }
 
         function removeCar(car) {
@@ -621,6 +718,11 @@
         function updateSpeed(value) {
             animationSpeed = parseInt(value);
             document.getElementById('speedDisplay').textContent = `${value}x`;
+        }
+
+        function updateStats(data) {
+            document.getElementById('density').textContent = `${data.density}%`;
+            document.getElementById('waitTime').textContent = `${data.avgWaitTime || 0}s`;
         }
 
         async function triggerEmergency() {
