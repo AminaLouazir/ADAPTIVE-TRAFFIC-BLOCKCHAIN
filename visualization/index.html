@@ -446,9 +446,364 @@
             <div class="panel-card">
                 <h3>System Controls</h3>
                 <div class="controls">
-                    <button class="control-btn emergency" onclick="triggerEmergency()">
-                        🚨 Emergency Mode
-                    </button>
+                    <!-- 🚨 REPLACE YOUR EMERGENCY BUTTON WITH THIS COMPLETE EMERGENCY PANEL -->
+<!-- Insert this where you currently have the emergency button in the controls section -->
+
+<style>
+/* ADD THESE STYLES TO YOUR <style> TAG */
+.emergency-panel {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.emergency-panel h3 {
+    color: white !important;
+    border-bottom-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.emergency-directions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.direction-btn {
+    padding: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.direction-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.direction-btn.selected {
+    background: white;
+    color: #ef4444;
+    border-color: white;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.direction-icon {
+    font-size: 2em;
+}
+
+.vehicle-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.vehicle-btn {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.vehicle-btn.selected {
+    background: white;
+    color: #ef4444;
+}
+
+.emergency-activate {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    background: white;
+    color: #ef4444;
+    border-radius: 10px;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+.emergency-activate:disabled {
+    opacity: 0.5;
+}
+
+.emergency-clear {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid white;
+    background: transparent;
+    color: white;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.emergency-status {
+    margin-top: 15px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.emergency-status.active {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+</style>
+
+<!-- HTML FOR EMERGENCY PANEL -->
+<div class="panel-card emergency-panel">
+    <h3>🚨 Emergency Control</h3>
+    
+    <div style="margin-bottom: 15px; font-size: 0.9em; opacity: 0.9;">
+        Select emergency vehicle direction:
+    </div>
+
+    <div class="emergency-directions">
+        <button class="direction-btn" onclick="selectDirection('NORTH')" id="dir-north">
+            <span class="direction-icon">⬆️</span>
+            <span>NORTH</span>
+        </button>
+        <button class="direction-btn" onclick="selectDirection('SOUTH')" id="dir-south">
+            <span class="direction-icon">⬇️</span>
+            <span>SOUTH</span>
+        </button>
+        <button class="direction-btn" onclick="selectDirection('EAST')" id="dir-east">
+            <span class="direction-icon">➡️</span>
+            <span>EAST</span>
+        </button>
+        <button class="direction-btn" onclick="selectDirection('WEST')" id="dir-west">
+            <span class="direction-icon">⬅️</span>
+            <span>WEST</span>
+        </button>
+    </div>
+
+    <div style="margin-bottom: 10px; font-size: 0.9em; opacity: 0.9;">
+        Vehicle type:
+    </div>
+
+    <div class="vehicle-selector">
+        <button class="vehicle-btn selected" onclick="selectVehicle('AMBULANCE')" id="vehicle-ambulance">
+            🚑 Ambulance
+        </button>
+        <button class="vehicle-btn" onclick="selectVehicle('FIRE')" id="vehicle-fire">
+            🚒 Fire
+        </button>
+        <button class="vehicle-btn" onclick="selectVehicle('POLICE')" id="vehicle-police">
+            🚓 Police
+        </button>
+    </div>
+
+    <button class="emergency-activate" onclick="activateEmergency()" id="emergencyActivateBtn">
+        🚨 ACTIVATE EMERGENCY
+    </button>
+    
+    <button class="emergency-clear" onclick="clearEmergency()" id="emergencyClearBtn" style="display: none;">
+        ✅ CLEAR EMERGENCY
+    </button>
+
+    <div class="emergency-status" id="emergencyStatus">
+        Select direction and click ACTIVATE
+    </div>
+</div>
+
+<script>
+// ADD THESE JAVASCRIPT FUNCTIONS TO YOUR <script> TAG
+
+// Emergency state variables
+let selectedEmergencyDirection = null;
+let selectedVehicleType = 'AMBULANCE';
+let emergencyModeActive = false;
+
+function selectDirection(direction) {
+    selectedEmergencyDirection = direction;
+    
+    // Update UI
+    document.querySelectorAll('.direction-btn').forEach(btn => {
+        btn.classList.remove('selected');
+    });
+    document.getElementById(`dir-${direction.toLowerCase()}`).classList.add('selected');
+    
+    addLog(`📍 Emergency direction selected: ${direction}`);
+}
+
+// 🔥 NEW FUNCTION: Set emergency lights (ALL RED except emergency direction GREEN)
+function setEmergencyLights(emergencyDirection) {
+    console.log(`🚨 Setting emergency lights for ${emergencyDirection}`);
+    
+    // Set ALL lights to RED first
+    lightStates = {
+        north: 'RED',
+        south: 'RED',
+        east: 'RED',
+        west: 'RED'
+    };
+
+    // Set emergency direction to GREEN
+    lightStates[emergencyDirection.toLowerCase()] = 'GREEN';
+
+    console.log('Emergency light states:', lightStates);
+
+    // Update UI immediately
+    document.querySelectorAll('.light').forEach(light => {
+        light.className = 'light';
+    });
+
+    // Apply emergency light states
+    for (const [direction, state] of Object.entries(lightStates)) {
+        const lightClass = `active-${state.toLowerCase()}`;
+        document.getElementById(`light-${direction}-${state.toLowerCase()}`).classList.add(lightClass);
+    }
+
+    // Update center status
+    document.getElementById('centerStatus').textContent = '🚨';
+}
+function selectVehicle(type) {
+    selectedVehicleType = type;
+    
+    // Update UI
+    document.querySelectorAll('.vehicle-btn').forEach(btn => {
+        btn.classList.remove('selected');
+    });
+    document.getElementById(`vehicle-${type.toLowerCase()}`).classList.add('selected');
+    
+    addLog(`🚑 Vehicle type selected: ${type}`);
+}
+
+async function activateEmergency() {
+    if (!selectedEmergencyDirection) {
+        alert('⚠️ Please select an emergency direction first!');
+        return;
+    }
+
+    
+    try {
+        addLog(`🚨 Activating emergency mode...`);
+        addLog(`   Direction: ${selectedEmergencyDirection}`);
+        addLog(`   Vehicle: ${selectedVehicleType}`);
+
+        const response = await fetch(`${API_URL}/api/traffic/emergency`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                direction: selectedEmergencyDirection,
+                vehicleType: selectedVehicleType
+            })
+        });
+
+        const data = await response.json();
+
+        // === EMERGENCY VISUAL ACTIVATION ===
+        emergencyModeActive = true;
+
+        // Force emergency light mode
+        currentLightState = 'EMERGENCY';
+
+        // 🔥 ADD THIS LINE:
+        setEmergencyLights(selectedEmergencyDirection);
+
+        // Spawn emergency vehicle immediately (THIS WAS MISSING)
+        spawnEmergencyCar(selectedEmergencyDirection, selectedVehicleType);
+
+        // Update emergency UI
+        document.getElementById('emergencyStatus').textContent =
+        `🚨 ACTIVE: ${selectedVehicleType} from ${selectedEmergencyDirection}`;
+        document.getElementById('emergencyStatus').classList.add('active');
+
+        document.getElementById('emergencyActivateBtn').style.display = 'none';
+        document.getElementById('emergencyClearBtn').style.display = 'block';
+
+        addLog('🚑 Emergency vehicle deployed');
+
+    } catch (error) {
+        addLog(`❌ Connection error: ${error.message}`);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function clearEmergency() {
+    try {
+        addLog('🟢 Clearing emergency mode...');
+
+        const response = await fetch(`${API_URL}/api/traffic/emergency/clear`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            emergencyModeActive = false;
+            selectedEmergencyDirection = null;
+            
+            addLog('✅ Emergency cleared! Normal operation resumed.');
+            
+            // Reset UI
+            document.getElementById('emergencyStatus').textContent = 'Select direction and click ACTIVATE';
+            document.getElementById('emergencyStatus').classList.remove('active');
+            document.getElementById('emergencyActivateBtn').style.display = 'block';
+            document.getElementById('emergencyClearBtn').style.display = 'none';
+            
+            document.querySelectorAll('.direction-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+        } else {
+            addLog(`❌ Failed to clear: ${data.error}`);
+        }
+    } catch (error) {
+        addLog(`❌ Error: ${error.message}`);
+    }
+}
+
+
+function spawnEmergencyCar(direction, vehicleType) {
+    const intersection = document.getElementById('intersection');
+
+    const car = document.createElement('div');
+    car.className = `car car-${direction.toLowerCase()}`;
+    car.textContent =
+        vehicleType === 'AMBULANCE' ? '🚑' :
+        vehicleType === 'FIRE' ? '🚒' : '🚓';
+
+    car.style.background = '#ef4444';
+    car.style.boxShadow = '0 0 15px red';
+
+    const carData = {
+        id: carIdCounter++,
+        element: car,
+        direction: direction.toLowerCase(),
+        position: 0,
+        waiting: false,
+        passedIntersection: false,
+        emergency: true
+    };
+
+    cars.push(carData);
+    intersection.appendChild(car);
+
+    document.getElementById('carCount').textContent = cars.length;
+    addLog(`🚨 Emergency vehicle spawned from ${direction}`);
+}
+
+
+// REMOVE OR REPLACE YOUR OLD triggerEmergency() function with activateEmergency()
+</script>
                     <button class="control-btn clear" onclick="clearAllCars()">
                         🗑️ Clear All Cars
                     </button>
@@ -565,9 +920,15 @@
         const YELLOW_DURATION = 2000; // Yellow for 2 seconds
 
         function updateTrafficLights(status) {
+            // 🚨 CRITICAL: If in emergency mode, keep emergency lights
+            if (emergencyModeActive) {
+                console.log('⚠️ In emergency mode, maintaining emergency lights');
+                return; // Don't change lights during emergency
+            }
+
             currentLightState = status;
             document.getElementById('centerStatus').textContent = status === 'EMERGENCY' ? '🚨' : '🚦';
-            
+    
             // Reset all lights
             document.querySelectorAll('.light').forEach(light => {
                 light.className = 'light';
@@ -576,17 +937,11 @@
             const now = Date.now();
             const timeSinceChange = now - lastDirectionChange;
 
-            // Handle emergency
-            if (status === 'EMERGENCY') {
-                lightStates = { north: 'RED', south: 'RED', east: 'RED', west: 'RED' };
-                isYellowPhase = false;
-            }
             // Check if we should switch to yellow phase
-            else if (timeSinceChange > GREEN_DURATION && !isYellowPhase) {
+            if (timeSinceChange > GREEN_DURATION && !isYellowPhase) {
                 isYellowPhase = true;
                 addLog(`🟡 Yellow light warning for ${currentGreenDirection.toUpperCase()}`);
-                
-                // Current direction gets yellow, opposite stays red
+        
                 if (currentGreenDirection === 'north-south') {
                     lightStates = { north: 'YELLOW', south: 'YELLOW', east: 'RED', west: 'RED' };
                 } else {
@@ -595,13 +950,11 @@
             }
             // Check if we should switch directions
             else if (timeSinceChange > GREEN_DURATION + YELLOW_DURATION) {
-                // Switch to opposite direction
                 currentGreenDirection = currentGreenDirection === 'north-south' ? 'east-west' : 'north-south';
                 lastDirectionChange = now;
                 isYellowPhase = false;
                 addLog(`🟢 Green light for ${currentGreenDirection.toUpperCase()}`);
-                
-                // New direction gets green, opposite gets red
+        
                 if (currentGreenDirection === 'north-south') {
                     lightStates = { north: 'GREEN', south: 'GREEN', east: 'RED', west: 'RED' };
                 } else {
@@ -625,9 +978,15 @@
         }
 
         function canCarMove(car) {
-            // Emergency vehicles can always move
-            if (currentLightState === 'EMERGENCY' && car.element.textContent === '🚑') {
+            // 🚨 EMERGENCY VEHICLES ALWAYS MOVE
+            if (car.emergency) {
                 return true;
+            }
+
+            // 🚨 IN EMERGENCY MODE: Normal cars MUST stop
+            if (emergencyModeActive) {
+                car.waiting = true;
+                return false;
             }
 
             // If car hasn't reached the stop line yet, it can move
@@ -642,8 +1001,7 @@
 
             // Check if the light is green for this direction
             const myLight = lightStates[car.direction];
-            
-            // Can ONLY move if light is GREEN
+    
             if (myLight === 'GREEN') {
                 car.waiting = false;
                 return true;
@@ -736,14 +1094,67 @@
 
         async function resetSystem() {
             try {
+                addLog('🔄 Resetting system...');
+        
+                // Call backend to reset
                 await fetch(`${API_URL}/api/traffic/override`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'GREEN', density: 20 })
+                    body: JSON.stringify({ status: 'GREEN', density: 0.2 })
                 });
-                addLog('✅ System reset');
+        
+                // 🔥 RESET FRONTEND STATE
+                emergencyModeActive = false;
+                selectedEmergencyDirection = null;
+                currentLightState = 'GREEN';
+                lastDirectionChange = Date.now();
+                isYellowPhase = false;
+                currentGreenDirection = 'north-south';
+        
+                // Reset light states to default (N-S green, E-W red)
+                lightStates = {
+                    north: 'GREEN',
+                    south: 'GREEN',
+                    east: 'RED',
+                    west: 'RED'
+                };
+        
+                // Update UI lights
+                document.querySelectorAll('.light').forEach(light => {
+                    light.className = 'light';
+                });
+        
+                for (const [direction, state] of Object.entries(lightStates)) {
+                    const lightClass = `active-${state.toLowerCase()}`;
+                    document.getElementById(`light-${direction}-${state.toLowerCase()}`).classList.add(lightClass);
+                }
+        
+                // Reset center status
+                document.getElementById('centerStatus').textContent = '🚦';
+        
+                // Reset emergency UI
+                document.getElementById('emergencyStatus').textContent = 'Select direction and click ACTIVATE';
+                document.getElementById('emergencyStatus').classList.remove('active');
+                document.getElementById('emergencyActivateBtn').style.display = 'block';
+                document.getElementById('emergencyClearBtn').style.display = 'none';
+        
+                document.querySelectorAll('.direction-btn').forEach(btn => {
+                    btn.classList.remove('selected');
+                });
+        
+                // Clear all cars
+                clearAllCars();
+        
+                // Reset stats
+                document.getElementById('density').textContent = '20%';
+                document.getElementById('queueLength').textContent = '0';
+                document.getElementById('waitTime').textContent = '0s';
+        
+                addLog('✅ System reset complete');
+        
             } catch (error) {
-                addLog('Failed to reset system');
+                console.error('Reset failed:', error);
+                addLog('❌ Failed to reset system');
             }
         }
 

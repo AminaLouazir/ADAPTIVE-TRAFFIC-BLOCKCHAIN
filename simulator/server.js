@@ -3,8 +3,7 @@
 /**
  * Traffic Management Backend Server
  * INTÉGRÉ AVEC HYPERLEDGER FABRIC
- * 
- * Chaque changement de feu = Transaction sur la blockchain
+ * FIXED: Emergency mode uses correct chaincode functions and Org2
  */
 
 const WebSocket = require('ws');
@@ -18,9 +17,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// Client Fabric
+// Client Fabric for Org1 (Traffic Management)
 const fabricClient = new FabricClient();
 let fabricConnected = false;
+
+// Client Fabric for Org2 (Emergency Services) - created on demand
+let emergencyClient = null;
+let emergencyConnected = false;
 
 let isUpdating = false;
 
@@ -31,12 +34,10 @@ function getNextValidState(oldState, desiredState) {
     RED: ['GREEN']
   };
 
-  // If the desired state is allowed, return it
-  if (transitions[oldState].includes(desiredState)) {
+  if (transitions[oldState] && transitions[oldState].includes(desiredState)) {
     return desiredState;
   }
 
-  // Otherwise, just stay in current state
   return oldState;
 }
 
@@ -55,6 +56,7 @@ let trafficState = {
   avgWaitTime: 30,
   emergencyMode: false
 };
+
 function mapSimulatorToFabricLightId(trafficState) {
     const intersectionMap = {
         'Main_1st': 'INT-001',
@@ -71,9 +73,17 @@ function mapSimulatorToFabricLightId(trafficState) {
 
     return `${intersectionMap[trafficState.intersectionId]}-${trafficState.direction}`;
 }
-const fabricLightId = mapSimulatorToFabricLightId(trafficState);
 
-// Historique des changements (pour debugging)
+function mapSimulatorToIntersectionId(trafficState) {
+    const intersectionMap = {
+        'Main_1st': 'INT-001',
+        'Zerktouni_Sebou': 'INT-002'
+    };
+
+    return intersectionMap[trafficState.intersectionId] || 'INT-001';
+}
+
+// Historique des changements
 let stateHistory = [];
 
 // Create HTTP server
@@ -83,14 +93,13 @@ const server = app.listen(PORT, async () => {
   console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
   console.log('');
   
-  // Connexion à Fabric au démarrage
-  fabricConnected = await fabricClient.connect();
+  // Connexion à Fabric au démarrage (Org1 - Traffic Management)
+  fabricConnected = await fabricClient.connect('Org1');
   
   if (fabricConnected) {
-    console.log('✅ CONNECTÉ À LA BLOCKCHAIN HYPERLEDGER FABRIC');
+    console.log('✅ CONNECTÉ À LA BLOCKCHAIN (ORG1 - Traffic Management)');
     console.log('📝 Toutes les transactions seront enregistrées sur le ledger');
     
-    // Initialiser le ledger si nécessaire
     try {
       await fabricClient.initLedger();
       console.log('ℹ️  Ledger initialisé (intersections INT-001 et INT-002 créées)');
@@ -106,11 +115,9 @@ const server = app.listen(PORT, async () => {
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
 
-// WebSocket connection handler
 wss.on('connection', (ws) => {
   console.log('✅ New WebSocket client connected');
   
-  // Send current state immediately
   ws.send(JSON.stringify({
     type: 'state',
     data: trafficState,
@@ -122,7 +129,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Broadcast to all connected clients
 function broadcast(data) {
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
@@ -132,48 +138,63 @@ function broadcast(data) {
 }
 
 /**
- * Fonction principale: Mettre à jour l'état ET écrire sur blockchain
+ * Connect to Org2 for emergency operations
+ */
+async function ensureEmergencyConnection() {
+  if (!emergencyClient) {
+    emergencyClient = new FabricClient();
+  }
+  
+  if (!emergencyConnected) {
+    emergencyConnected = await emergencyClient.connect('Org2');
+    if (emergencyConnected) {
+      console.log('🚨 Emergency Services (Org2) connecté');
+    } else {
+      throw new Error('Cannot connect as Org2 (Emergency Services)');
+    }
+  }
+  
+  return emergencyClient;
+}
+
+/**
+ * Mettre à jour l'état ET écrire sur blockchain
  */
 async function updateTrafficStateOnBlockchain(newState, newDensity, newVehicleCount, newWaitTime) {
   if (isUpdating) return;
   isUpdating = true;
+  
   try {
     newState = getNextValidState(trafficState.status, newState);
     const oldState = trafficState.status;
   
-    // Mettre à jour l'état local
     trafficState.status = newState;
     trafficState.density = newDensity;
     trafficState.vehicleCount = newVehicleCount;
     trafficState.waitTime = newWaitTime;
     trafficState.timestamp = new Date().toISOString();
   
-    // Sauvegarder dans l'historique
     stateHistory.push({
       ...trafficState,
       timestamp: trafficState.timestamp
     });
   
-    // Si connecté à Fabric, écrire la TRANSACTION sur la blockchain
     if (fabricConnected) {
       try {
-        // 🔥 TRANSACTION BLOCKCHAIN 🔥
-        //console.log('🚦 trafficState object:', trafficState);
         const fabricLightId = mapSimulatorToFabricLightId(trafficState);
-        // 1. Mettre à jour la densité
+        
+        // 1. Update traffic density
         await fabricClient.updateTrafficDensity(
           fabricLightId,
-          trafficState.status,  // e.g., "YELLOW"
-          'Traffic density update',
           newVehicleCount,
           newDensity,
           newWaitTime
         );
       
-        // 2. Si l'état change, mettre à jour le signal
+        // 2. If state changed, update signal
         if (newState !== oldState) {
           const reason = `Automatic adjustment based on density ${Math.round(newDensity * 100)}%`;
-          const result = await fabricClient.updateSignalState(
+          await fabricClient.updateSignalState(
             fabricLightId,
             newState,
             reason
@@ -182,14 +203,12 @@ async function updateTrafficStateOnBlockchain(newState, newDensity, newVehicleCo
         }
       
       } catch (error) {
-        console.error('❌ Erreur lors de l\'écriture sur blockchain:', error.message);
-      // Continue en mode simulation si erreur
+        console.error('❌ Erreur blockchain:', error.message);
       }
     } else {
       console.log(`📊 SIMULATION: ${oldState} → ${newState} (Densité: ${Math.round(newDensity * 100)}%)`);
     }
   
-  // Diffuser aux clients WebSocket
     broadcast({
       type: 'update',
       data: trafficState,
@@ -197,33 +216,35 @@ async function updateTrafficStateOnBlockchain(newState, newDensity, newVehicleCo
     });
 
   } catch (err) {
-    console.error('❌ Erreur updateTrafficDensity:', err.message);
+    console.error('❌ Erreur updateTrafficState:', err.message);
   } finally {
-    isUpdating = false; // Always release lock
+    isUpdating = false;
   }
 }
 
 /**
- * Simulation de trafic avec transactions blockchain
+ * Simulation de trafic
+ * PAUSED during emergency mode to prevent MVCC conflicts
  */
 let simulationInterval = setInterval(async () => {
-  // Simulation réaliste basée sur l'heure
+  // 🚨 CRITICAL: Skip simulation during emergency to prevent MVCC conflicts
+  if (trafficState.emergencyMode) {
+    console.log('⏸️  Simulation paused (emergency mode active)');
+    return;
+  }
+  
   const hour = new Date().getHours();
   const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
   
-  // Calculer la nouvelle densité (0.0 - 1.0)
   const newDensity = isRushHour 
-    ? (Math.random() * 0.4 + 0.6)  // 0.6-1.0 heures de pointe
-    : (Math.random() * 0.6 + 0.1); // 0.1-0.7 normal
+    ? (Math.random() * 0.4 + 0.6)
+    : (Math.random() * 0.6 + 0.1);
   
-  const newVehicleCount = Math.floor(newDensity * 20); // 0-20 véhicules
-  const newWaitTime = Math.floor(newDensity * 80); // 0-80 secondes
+  const newVehicleCount = Math.floor(newDensity * 20);
+  const newWaitTime = Math.floor(newDensity * 80);
   
-  // Déterminer le nouvel état du feu
   let newState;
-  if (trafficState.emergencyMode) {
-    newState = 'RED'; // Urgence = tous au rouge
-  } else if (newDensity > 0.7) {
+  if (newDensity > 0.7) {
     newState = 'RED';
   } else if (newDensity > 0.4) {
     newState = 'YELLOW';
@@ -231,11 +252,9 @@ let simulationInterval = setInterval(async () => {
     newState = 'GREEN';
   }
   
-  // ⚡ Écrire sur blockchain SEULEMENT si l'état change
   if (newState !== trafficState.status) {
     await updateTrafficStateOnBlockchain(newState, newDensity, newVehicleCount, newWaitTime);
   } else {
-    // Mise à jour silencieuse (pas de transaction si feu ne change pas)
     trafficState.density = newDensity;
     trafficState.vehicleCount = newVehicleCount;
     trafficState.waitTime = newWaitTime;
@@ -243,29 +262,25 @@ let simulationInterval = setInterval(async () => {
     broadcast({
       type: 'update',
       data: trafficState,
-      blockchainConfirmed: false // Pas de transaction
+      blockchainConfirmed: false
     });
   }
   
-}, 3000); // Vérification toutes les 3 secondes
+}, 3000);
 
 // REST API Endpoints
 
-/**
- * Obtenir l'état actuel (depuis blockchain si connecté)
- */
 app.get('/api/traffic/current', async (req, res) => {
   try {
     if (fabricConnected) {
-      // Lire depuis la blockchain
-      const blockchainData = await fabricClient.getTrafficLight('TL001');
+      const fabricLightId = mapSimulatorToFabricLightId(trafficState);
+      const blockchainData = await fabricClient.getTrafficLight(fabricLightId);
       res.json({
         success: true,
         data: blockchainData,
         source: 'blockchain'
       });
     } else {
-      // Mode simulation
       res.json({
         success: true,
         data: trafficState,
@@ -280,21 +295,17 @@ app.get('/api/traffic/current', async (req, res) => {
   }
 });
 
-/**
- * Obtenir l'historique depuis la blockchain
- */
 app.get('/api/traffic/history', async (req, res) => {
   try {
     if (fabricConnected) {
-      // Lire l'historique depuis la blockchain
-      const history = await fabricClient.getTrafficHistory('TL001');
+      const intersectionId = mapSimulatorToIntersectionId(trafficState);
+      const history = await fabricClient.getDecisionHistory(intersectionId);
       res.json({
         success: true,
         data: history,
         source: 'blockchain'
       });
     } else {
-      // Historique local
       res.json({
         success: true,
         data: stateHistory,
@@ -309,9 +320,6 @@ app.get('/api/traffic/history', async (req, res) => {
   }
 });
 
-/**
- * Override manuel (TRANSACTION)
- */
 app.post('/api/traffic/override', async (req, res) => {
   const { status, density } = req.body;
   
@@ -321,7 +329,6 @@ app.post('/api/traffic/override', async (req, res) => {
     const newQueueLength = Math.floor(newDensity / 10);
     const newWaitTime = Math.floor(newDensity * 0.8);
     
-    // ⚡ Transaction blockchain
     await updateTrafficStateOnBlockchain(
       newStatus,
       newDensity,
@@ -343,64 +350,304 @@ app.post('/api/traffic/override', async (req, res) => {
 });
 
 /**
- * Mode urgence (TRANSACTION)
+ * 🚨 EMERGENCY MODE - Uses Org2 and correct chaincode function
  */
 app.post('/api/traffic/emergency', async (req, res) => {
   try {
+    // 🔍 DEBUG: Log incoming request
+    console.log('📥 Emergency request received:', req.body);
+    
+    const { direction, vehicleType } = req.body;
+    
+    // Validate direction
+    const validDirections = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+    const emergencyDirection = direction && validDirections.includes(direction) 
+      ? direction 
+      : 'NORTH'; // fallback
+    const emergencyVehicle = vehicleType || 'AMBULANCE';
+    
+    console.log(`📍 Using direction: ${emergencyDirection}`);
+    console.log(`🚑 Using vehicle: ${emergencyVehicle}`);
+    
+    // 🔒 STOP SIMULATION to prevent MVCC conflicts
     trafficState.emergencyMode = true;
+    console.log('⏸️  Simulation paused for emergency');
+    
+    // Wait a bit for any pending transactions to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     if (fabricConnected) {
-      // Transaction blockchain pour mode urgence
-      await fabricClient.activateEmergency('TL001');
+      // Connect as Org2 (Emergency Services)
+      const emergClient = await ensureEmergencyConnection();
+      
+      const intersectionId = mapSimulatorToIntersectionId(trafficState);
+      
+      // Call chaincode triggerEmergency
+      const result = await emergClient.triggerEmergency(
+        intersectionId,
+        emergencyDirection,
+        emergencyVehicle
+      );
+      
       console.log('🚨 MODE URGENCE ENREGISTRÉ SUR LA BLOCKCHAIN');
+      console.log(`   Intersection: ${intersectionId}`);
+      console.log(`   Direction: ${emergencyDirection}`);
+      console.log(`   Vehicle: ${emergencyVehicle}`);
+      console.log(`   ✅ ${emergencyDirection} should now be GREEN/EMERGENCY`);
+      console.log(`   ✅ All other directions should be RED`);
+      
+      // Update local state
+      trafficState.status = 'EMERGENCY';
+      trafficState.emergencyDirection = emergencyDirection;
+      trafficState.emergencyVehicle = emergencyVehicle;
+      trafficState.density = 95;
+      trafficState.vehicleCount = 10;
+      trafficState.waitTime = 80;
+      
+      broadcast({
+        type: 'emergency',
+        data: {
+          ...trafficState,
+          emergencyDirection,
+          emergencyVehicle
+        },
+        blockchainData: result
+      });
+
+      
+      res.json({
+        success: true,
+        message: 'Emergency mode activated (blockchain)',
+        data: trafficState,
+        blockchain: result
+      });
+    } else {
+      // Simulation mode
+      trafficState.status = 'RED';
+      trafficState.density = 95;
+      trafficState.vehicleCount = 10;
+      trafficState.waitTime = 80;
+      
+      broadcast({
+        type: 'emergency',
+        data: trafficState
+      });
+      
+      res.json({
+        success: true,
+        message: 'Emergency mode activated (simulation)',
+        data: trafficState
+      });
     }
-    
-    // Forcer tous les feux au rouge
-    await updateTrafficStateOnBlockchain(
-      'RED',
-      95,
-      10,
-      80
-    );
-    
-    broadcast({
-      type: 'emergency',
-      data: trafficState
-    });
-    
-    res.json({
-      success: true,
-      message: 'Emergency mode activated' + (fabricConnected ? ' (blockchain)' : ' (simulation)'),
-      data: trafficState
-    });
   } catch (error) {
+    console.error('❌ Emergency activation failed:', error.message);
+    
+    // Restore simulation on error
+    trafficState.emergencyMode = false;
+
+    delete trafficState.emergencyDirection;
+    delete trafficState.emergencyVehicle;
+    trafficState.status = 'GREEN';
+
+    
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      hint: 'Emergency mode requires Org2 connection. Make sure Org2 identity exists.'
     });
   }
 });
 
 /**
- * Désactiver mode urgence
+ * 🟢 CLEAR EMERGENCY - Uses Org2
  */
+// 🚨 FIXED EMERGENCY ENDPOINT - Replace your existing /api/traffic/emergency endpoint
+
+app.post('/api/traffic/emergency', async (req, res) => {
+  try {
+    console.log('📥 Emergency request received:', req.body);
+    
+    const { direction, vehicleType } = req.body;
+    
+    // Validate direction
+    const validDirections = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+    const emergencyDirection = direction && validDirections.includes(direction) 
+      ? direction 
+      : 'NORTH';
+    const emergencyVehicle = vehicleType || 'AMBULANCE';
+    
+    console.log(`📍 Using direction: ${emergencyDirection}`);
+    console.log(`🚑 Using vehicle: ${emergencyVehicle}`);
+    
+    // 🔒 STOP SIMULATION to prevent MVCC conflicts
+    trafficState.emergencyMode = true;
+    console.log('⏸️  Simulation paused for emergency');
+    
+    // Wait for pending transactions
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    if (fabricConnected) {
+      // Connect as Org2 (Emergency Services)
+      const emergClient = await ensureEmergencyConnection();
+      
+      const intersectionId = mapSimulatorToIntersectionId(trafficState);
+      
+      // Call chaincode triggerEmergency
+      const result = await emergClient.triggerEmergency(
+        intersectionId,
+        emergencyDirection,
+        emergencyVehicle
+      );
+      
+      console.log('🚨 MODE URGENCE ENREGISTRÉ SUR LA BLOCKCHAIN');
+      
+      // Update local state
+      trafficState.status = 'EMERGENCY';
+      trafficState.emergencyMode = true;
+      trafficState.emergencyDirection = emergencyDirection;
+      trafficState.emergencyVehicle = emergencyVehicle;
+      trafficState.density = 95;
+      trafficState.vehicleCount = 10;
+      trafficState.waitTime = 80;
+      
+      // 🔥 CRITICAL FIX: Include ALL emergency data in broadcast
+      broadcast({
+        type: 'emergency',
+        data: {
+          ...trafficState,
+          emergencyMode: true,
+          emergencyDirection: emergencyDirection,
+          emergencyVehicle: emergencyVehicle,
+          status: 'EMERGENCY'
+        },
+        blockchainData: result
+      });
+
+      console.log('📡 Emergency broadcast sent to all WebSocket clients');
+      
+      res.json({
+        success: true,
+        message: 'Emergency mode activated (blockchain)',
+        data: trafficState,
+        blockchain: result
+      });
+    } else {
+      // Simulation mode
+      trafficState.status = 'EMERGENCY';
+      trafficState.emergencyMode = true;
+      trafficState.emergencyDirection = emergencyDirection;
+      trafficState.emergencyVehicle = emergencyVehicle;
+      trafficState.density = 95;
+      trafficState.vehicleCount = 10;
+      trafficState.waitTime = 80;
+      
+      // 🔥 CRITICAL: Same broadcast structure for simulation mode
+      broadcast({
+        type: 'emergency',
+        data: {
+          ...trafficState,
+          emergencyMode: true,
+          emergencyDirection: emergencyDirection,
+          emergencyVehicle: emergencyVehicle,
+          status: 'EMERGENCY'
+        }
+      });
+      
+      console.log('📡 Emergency broadcast sent (simulation mode)');
+      
+      res.json({
+        success: true,
+        message: 'Emergency mode activated (simulation)',
+        data: trafficState
+      });
+    }
+  } catch (error) {
+    console.error('❌ Emergency activation failed:', error.message);
+    
+    // Restore simulation on error
+    trafficState.emergencyMode = false;
+    delete trafficState.emergencyDirection;
+    delete trafficState.emergencyVehicle;
+    trafficState.status = 'GREEN';
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      hint: 'Emergency mode requires Org2 connection'
+    });
+  }
+});
+
+// 🟢 FIXED CLEAR EMERGENCY ENDPOINT
 app.post('/api/traffic/emergency/clear', async (req, res) => {
   try {
-    trafficState.emergencyMode = false;
+    console.log('🟢 Clearing emergency mode...');
     
-    await updateTrafficStateOnBlockchain(
-      'GREEN',
-      30,
-      3,
-      20
-    );
-    
-    res.json({
-      success: true,
-      message: 'Emergency mode cleared',
-      data: trafficState
-    });
+    if (fabricConnected && emergencyConnected) {
+      const emergClient = await ensureEmergencyConnection();
+      const intersectionId = mapSimulatorToIntersectionId(trafficState);
+      
+      const result = await emergClient.clearEmergency(intersectionId);
+      
+      console.log('✅ MODE URGENCE DÉSACTIVÉ');
+      
+      // Clean up emergency state
+      trafficState.status = 'GREEN';
+      trafficState.emergencyMode = false;
+      delete trafficState.emergencyDirection;
+      delete trafficState.emergencyVehicle;
+      trafficState.density = 30;
+      trafficState.vehicleCount = 3;
+      trafficState.waitTime = 20;
+      
+      // 🔥 CRITICAL: Broadcast with clear signal
+      broadcast({
+        type: 'emergency_cleared',
+        data: {
+          ...trafficState,
+          emergencyMode: false,
+          status: 'GREEN'
+        },
+        blockchainData: result
+      });
+      
+      console.log('▶️  Simulation resumed');
+      
+      res.json({
+        success: true,
+        message: 'Emergency mode cleared (blockchain)',
+        data: trafficState,
+        blockchain: result
+      });
+    } else {
+      // Simulation mode clear
+      trafficState.status = 'GREEN';
+      trafficState.emergencyMode = false;
+      delete trafficState.emergencyDirection;
+      delete trafficState.emergencyVehicle;
+      trafficState.density = 30;
+      trafficState.vehicleCount = 3;
+      trafficState.waitTime = 20;
+      
+      broadcast({
+        type: 'emergency_cleared',
+        data: {
+          ...trafficState,
+          emergencyMode: false,
+          status: 'GREEN'
+        }
+      });
+      
+      console.log('▶️  Simulation resumed');
+      
+      res.json({
+        success: true,
+        message: 'Emergency mode cleared (simulation)',
+        data: trafficState
+      });
+    }
   } catch (error) {
+    console.error('❌ Emergency clear failed:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -408,9 +655,6 @@ app.post('/api/traffic/emergency/clear', async (req, res) => {
   }
 });
 
-/**
- * Health check + statut blockchain
- */
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -418,14 +662,13 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     websocketConnections: wss.clients.size,
     blockchainConnected: fabricConnected,
-    fabricStatus: fabricClient.isConnected() ? 'connected' : 'disconnected',
-    transactionCount: stateHistory.length
+    fabricOrg1: fabricClient.isConnected() ? 'connected' : 'disconnected',
+    fabricOrg2: emergencyConnected ? 'connected' : 'disconnected',
+    transactionCount: stateHistory.length,
+    emergencyMode: trafficState.emergencyMode
   });
 });
 
-/**
- * Statistiques blockchain
- */
 app.get('/api/blockchain/stats', async (req, res) => {
   try {
     if (!fabricConnected) {
@@ -435,15 +678,18 @@ app.get('/api/blockchain/stats', async (req, res) => {
       });
     }
     
-    const allLights = await fabricClient.queryAllLights();
-    const history = await fabricClient.getTrafficHistory('TL001');
+    const allLights = await fabricClient.getAllTrafficLights();
+    const intersectionId = mapSimulatorToIntersectionId(trafficState);
+    const history = await fabricClient.getDecisionHistory(intersectionId);
     
     res.json({
       success: true,
       data: {
         totalLights: allLights.length,
-        transactionCount: history.length,
-        connected: true
+        decisionCount: history.length,
+        connected: true,
+        currentOrg: fabricClient.getCurrentOrg(),
+        emergencyServicesAvailable: emergencyConnected
       }
     });
   } catch (error) {
@@ -458,15 +704,16 @@ app.get('/api/blockchain/stats', async (req, res) => {
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down gracefully...');
   
-  // Arrêter la simulation
   clearInterval(simulationInterval);
   
-  // Déconnecter de Fabric
   if (fabricConnected) {
     await fabricClient.disconnect();
   }
   
-  // Fermer le serveur
+  if (emergencyConnected) {
+    await emergencyClient.disconnect();
+  }
+  
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
@@ -482,7 +729,11 @@ process.on('SIGINT', async () => {
     await fabricClient.disconnect();
   }
   
+  if (emergencyConnected) {
+    await emergencyClient.disconnect();
+  }
+  
   process.exit(0);
 });
 
-module.exports = { app, server, wss, fabricClient };
+module.exports = { app, server, wss, fabricClient, emergencyClient };
