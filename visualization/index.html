@@ -347,6 +347,145 @@
             flex: 1;
         }
     </style>
+    <style>
+.hash-demo-panel {
+    background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+}
+
+.hash-input-section {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    border: 2px solid #e5e7eb;
+}
+
+.hash-result-card {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    border: 2px solid #e5e7eb;
+    transition: all 0.3s;
+}
+
+.hash-result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ca-hash {
+    border-left: 4px solid #3b82f6;
+}
+
+.chaotic-hash {
+    border-left: 4px solid #8b5cf6;
+}
+
+.hybrid-hash {
+    border-left: 4px solid #ec4899;
+}
+
+.hash-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.hash-icon {
+    font-size: 2em;
+}
+
+.hash-title {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 1em;
+}
+
+.hash-desc {
+    font-size: 0.8em;
+    color: #6b7280;
+}
+
+.hash-value {
+    font-family: 'Courier New', monospace;
+    background: #f3f4f6;
+    padding: 10px;
+    border-radius: 5px;
+    word-break: break-all;
+    font-size: 0.75em;
+    color: #374151;
+    margin-bottom: 5px;
+}
+
+.hash-rule {
+    font-size: 0.85em;
+    color: #6b7280;
+    font-weight: 600;
+}
+
+#densitySlider {
+    accent-color: #667eea;
+}
+</style>
+<script>
+// Update density display
+document.getElementById('densitySlider').addEventListener('input', function(e) {
+    document.getElementById('densityValue').textContent = e.target.value;
+});
+
+async function generateHashes() {
+    const input = document.getElementById('hashInput').value;
+    const density = document.getElementById('densitySlider').value / 100;
+    const state = document.getElementById('stateSelect').value;
+
+    if (!input.trim()) {
+        alert('Please enter some text to hash');
+        return;
+    }
+
+    try {
+        // Call the blockchain API
+        const response = await fetch(`${API_URL}/api/blockchain/compare-hashes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                inputData: input,
+                density: density,
+                signalState: state
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Display results
+            document.getElementById('hashResults').style.display = 'block';
+            
+            const hashes = data.data.hashes;
+            
+            // CA Hash
+            document.getElementById('caHashValue').textContent = hashes.cellularAutomaton.hash;
+            document.getElementById('caHashRule').textContent = 
+                `Rule Used: ${hashes.cellularAutomaton.ruleUsed || 'Adaptive'}`;
+            
+            // Chaotic Hash
+            document.getElementById('chaoticHashValue').textContent = hashes.chaotic.hash;
+            
+            // Hybrid Hash
+            document.getElementById('hybridHashValue').textContent = hashes.hybrid.hash;
+            
+            addLog(`🔐 Generated hashes for density ${Math.round(density * 100)}%, state ${state}`);
+        } else {
+            alert('Failed to generate hashes: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Hash generation error:', error);
+        alert('Error: ' + error.message);
+    }
+}
+</script>
 </head>
 <body>
     <div class="header">
@@ -421,6 +560,7 @@
                         ➡️ From West
                     </button>
                 </div>
+                
             </div>
 
             <!-- Statistics -->
@@ -440,6 +580,86 @@
                         <span class="stat-value" id="waitTime">0s</span>
                     </div>
                 </div>
+                <div class="panel-card hash-demo-panel">
+    <h3>🔐 Innovative Hash Functions Demo</h3>
+    <p style="font-size: 0.85em; color: #666; margin-bottom: 15px;">
+        Our system uses 3 innovative hash functions that adapt to traffic conditions
+    </p>
+
+    <!-- Input Section -->
+    <div class="hash-input-section">
+        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Test Data:</label>
+        <input type="text" id="hashInput" placeholder="Enter text to hash" 
+               value="Intersection-001-Traffic-Update" 
+               style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px;">
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+                <label style="font-size: 0.85em; color: #666;">Density: <span id="densityValue">50</span>%</label>
+                <input type="range" id="densitySlider" min="0" max="100" value="50" 
+                       style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-size: 0.85em; color: #666;">Signal State:</label>
+                <select id="stateSelect" style="width: 100%; padding: 8px; border-radius: 5px; border: 2px solid #e5e7eb;">
+                    <option value="GREEN">GREEN</option>
+                    <option value="YELLOW">YELLOW</option>
+                    <option value="RED">RED</option>
+                    <option value="EMERGENCY">EMERGENCY</option>
+                </select>
+            </div>
+        </div>
+
+        <button onclick="generateHashes()" 
+                style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 15px;">
+            🔐 Generate Hashes
+        </button>
+    </div>
+
+    <!-- Results Section -->
+    <div id="hashResults" style="display: none;">
+        <div class="hash-result-card ca-hash">
+            <div class="hash-header">
+                <span class="hash-icon">🔢</span>
+                <div>
+                    <div class="hash-title">Cellular Automaton Hash</div>
+                    <div class="hash-desc">Rules 30/90/110/184 - Adapts based on traffic</div>
+                </div>
+            </div>
+            <div class="hash-value" id="caHashValue">-</div>
+            <div class="hash-rule" id="caHashRule">Rule: -</div>
+        </div>
+
+        <div class="hash-result-card chaotic-hash">
+            <div class="hash-header">
+                <span class="hash-icon">🌀</span>
+                <div>
+                    <div class="hash-title">Chaotic Maps Hash</div>
+                    <div class="hash-desc">Logistic/Tent/Henon - Chaos theory based</div>
+                </div>
+            </div>
+            <div class="hash-value" id="chaoticHashValue">-</div>
+        </div>
+
+        <div class="hash-result-card hybrid-hash">
+            <div class="hash-header">
+                <span class="hash-icon">⚡</span>
+                <div>
+                    <div class="hash-title">Hybrid Hash</div>
+                    <div class="hash-desc">CA ⊕ Chaotic - Maximum security</div>
+                </div>
+            </div>
+            <div class="hash-value" id="hybridHashValue">-</div>
+        </div>
+
+        <div style="margin-top: 15px; padding: 12px; background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 5px;">
+            <div style="font-weight: 600; color: #047857; margin-bottom: 5px;">✓ Blockchain Integration</div>
+            <div style="font-size: 0.85em; color: #065f46;">
+                These hashes are used in the smart contract to verify traffic decisions and secure the ledger.
+            </div>
+        </div>
+    </div>
+</div>
             </div>
 
             <!-- Controls -->

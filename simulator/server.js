@@ -699,7 +699,77 @@ app.get('/api/blockchain/stats', async (req, res) => {
     });
   }
 });
+// ADD THIS ENDPOINT TO YOUR server.js (before the health endpoint)
 
+/**
+ * 🔐 HASH FUNCTION DEMONSTRATION
+ * Calls the smart contract's compareHashFunctions to show all 3 innovative hashes
+ */
+app.post('/api/blockchain/compare-hashes', async (req, res) => {
+  try {
+    const { inputData, density, signalState } = req.body;
+    
+    if (!fabricConnected) {
+      return res.json({
+        success: false,
+        message: 'Not connected to blockchain - using simulated hashes',
+        data: {
+          input: inputData,
+          density: density,
+          signalState: signalState,
+          hashes: {
+            cellularAutomaton: {
+              algorithm: 'Cellular Automaton (Rule 30/90/110/184)',
+              description: 'Adapts CA rule based on traffic conditions',
+              hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15),
+              ruleUsed: 'Rule 30 (simulation)'
+            },
+            chaotic: {
+              algorithm: 'Chaotic Maps (Logistic/Tent/Henon)',
+              description: 'Uses chaos theory for unpredictable hashing',
+              hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15)
+            },
+            hybrid: {
+              algorithm: 'Hybrid (CA XOR Chaotic)',
+              description: 'Maximum security combining both methods',
+              hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15)
+            }
+          }
+        }
+      });
+    }
+    
+    // Call smart contract function
+    const result = await fabricClient.contract.evaluateTransaction(
+      'compareHashFunctions',
+      inputData,
+      String(density),
+      signalState
+    );
+    
+    const hashData = JSON.parse(result.toString());
+    
+    console.log('🔐 Hash Comparison Generated:');
+    console.log(`   Input: ${inputData}`);
+    console.log(`   Density: ${Math.round(density * 100)}%`);
+    console.log(`   State: ${signalState}`);
+    console.log(`   CA Hash: ${hashData.hashes.cellularAutomaton.hash.substring(0, 16)}...`);
+    console.log(`   Chaotic Hash: ${hashData.hashes.chaotic.hash.substring(0, 16)}...`);
+    console.log(`   Hybrid Hash: ${hashData.hashes.hybrid.hash.substring(0, 16)}...`);
+    
+    res.json({
+      success: true,
+      data: hashData
+    });
+    
+  } catch (error) {
+    console.error('❌ Hash comparison error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down gracefully...');

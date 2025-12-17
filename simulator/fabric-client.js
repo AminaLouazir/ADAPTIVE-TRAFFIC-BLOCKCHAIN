@@ -2,11 +2,10 @@
 
 /**
  * Fabric Client - Connexion au réseau Hyperledger Fabric
- * Ce module permet au simulateur d'interagir avec le chaincode
+ * FIXED: Emergency mode matches chaincode (triggerEmergency/clearEmergency)
  */
 
 const { Gateway, Wallets } = require('fabric-network');
-const FabricCAServices = require('fabric-ca-client');
 const path = require('path');
 const fs = require('fs');
 
@@ -16,18 +15,15 @@ class FabricClient {
         this.contract = null;
         this.network = null;
         this.connected = false;
+        this.currentOrg = null;
     }
 
-    /**
-     * Se connecter au réseau Fabric
-     */
     async connect(orgName = 'Org1') {
         try {
             console.log(`🔗 Connexion au réseau Hyperledger Fabric en tant que ${orgName}...`);
         
-            this.currentOrg = orgName; // ← Définir AVANT de l'utiliser
+            this.currentOrg = orgName;
 
-            // Chemin du profil de connexion
             const ccpPath = path.resolve(
                 __dirname,
                 '..',
@@ -41,11 +37,9 @@ class FabricClient {
         
             const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
 
-            // Wallet
             const walletPath = path.join(process.cwd(), 'wallet');
             this.wallet = await Wallets.newFileSystemWallet(walletPath);
 
-            // UTILISER ADMIN avec le bon nom
             const adminIdentity = `admin-${orgName.toLowerCase()}`;
             const identity = await this.wallet.get(adminIdentity);
 
@@ -57,7 +51,6 @@ class FabricClient {
 
             console.log(`✅ Identity ${adminIdentity} found in wallet`);
 
-            // Gateway avec discovery DÉSACTIVÉ
             this.gateway = new Gateway();
             await this.gateway.connect(ccp, {
                 wallet: this.wallet,
@@ -69,7 +62,6 @@ class FabricClient {
 
             console.log('✅ Gateway connecté');
 
-            // Network & contract
             this.network = await this.gateway.getNetwork('traffic-channel');
             this.contract = this.network.getContract('traffic-light');
 
@@ -86,9 +78,6 @@ class FabricClient {
         }
     }
 
-    /**
-     * Initialiser le ledger
-     */
     async initLedger() {
         try {
             if (!this.connected) {
@@ -106,68 +95,6 @@ class FabricClient {
         }
     }
 
-    /**
-     * Créer un nouveau feu de circulation
-     */
-    async createTrafficLight(id, intersection, state, density) {
-        try {
-            if (!this.connected) {
-                throw new Error('Non connecté au réseau Fabric');
-            }
-
-            console.log(`📝 Création du feu ${id}...`);
-            
-            const result = await this.contract.submitTransaction(
-                'createTrafficLight',
-                id,
-                intersection,
-                state,
-                density.toString()
-            );
-
-            console.log('✅ Feu créé sur la blockchain');
-            return JSON.parse(result.toString());
-
-        } catch (error) {
-            console.error('❌ Erreur createTrafficLight:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Mettre à jour l'état d'un feu (TRANSACTION)
-     */
-    async updateTrafficState(id, state, density, queueLength, avgWaitTime) {
-        try {
-            if (!this.connected) {
-                throw new Error('Non connecté au réseau Fabric');
-            }
-
-            console.log(`📝 Transaction: Mise à jour du feu ${id} -> ${state}`);
-            
-            const result = await this.contract.submitTransaction(
-                'updateTrafficState',
-                id,
-                state,
-                density.toString(),
-                queueLength.toString(),
-                avgWaitTime.toString()
-            );
-
-            const updatedLight = JSON.parse(result.toString());
-            console.log(`✅ Transaction enregistrée sur la blockchain: ${state} @ ${density}%`);
-            
-            return updatedLight;
-
-        } catch (error) {
-            console.error('❌ Erreur updateTrafficState:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Lire l'état d'un feu (QUERY)
-     */
     async getTrafficLight(id) {
         try {
             if (!this.connected) {
@@ -187,68 +114,32 @@ class FabricClient {
         }
     }
 
-    /**
-     * Lire tous les feux
-     */
-    async queryAllLights() {
+    async getAllTrafficLights() {
         try {
             if (!this.connected) {
                 throw new Error('Non connecté au réseau Fabric');
             }
 
-            const result = await this.contract.evaluateTransaction('queryAllLights');
+            const result = await this.contract.evaluateTransaction('getAllTrafficLights');
             return JSON.parse(result.toString());
 
         } catch (error) {
-            console.error('❌ Erreur queryAllLights:', error);
+            console.error('❌ Erreur getAllTrafficLights:', error);
             throw error;
         }
     }
 
-    /**
-     * Obtenir l'historique d'un feu
-     */
-    async getTrafficHistory(id) {
+    async getIntersection(id) {
         try {
             if (!this.connected) {
                 throw new Error('Non connecté au réseau Fabric');
             }
 
-            const result = await this.contract.evaluateTransaction(
-                'getTrafficHistory',
-                id
-            );
-
+            const result = await this.contract.evaluateTransaction('getIntersection', id);
             return JSON.parse(result.toString());
 
         } catch (error) {
-            console.error('❌ Erreur getTrafficHistory:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Activer le mode urgence (TRANSACTION)
-     */
-    async activateEmergency(id) {
-        try {
-            if (!this.connected) {
-                throw new Error('Non connecté au réseau Fabric');
-            }
-
-            console.log(`🚨 Transaction: Mode urgence activé pour ${id}`);
-            
-            const result = await this.contract.submitTransaction(
-                'setEmergencyMode',
-                id,
-                'true'
-            );
-
-            console.log('✅ Mode urgence enregistré sur la blockchain');
-            return JSON.parse(result.toString());
-
-        } catch (error) {
-            console.error('❌ Erreur activateEmergency:', error);
+            console.error('❌ Erreur getIntersection:', error);
             throw error;
         }
     }
@@ -258,7 +149,7 @@ class FabricClient {
             throw new Error('Non connecté');
         }
 
-        // 🔒 HARD VALIDATION (this fixes your crash)
+        // 🔒 HARD VALIDATION
         if (
             lightId === undefined ||
             vehicleCount === undefined ||
@@ -291,33 +182,157 @@ class FabricClient {
         }
     }
 
-
     async updateSignalState(lightId, newState, reason) {
         if (!this.contract) {
             throw new Error('Contract not initialized');
         }
 
-        // Submit transaction to Fabric
-        const result = await this.contract.submitTransaction(
-            'updateSignalState',
-            lightId,
-            newState,
-            reason
-        );
+        // Validate state
+        const validStates = ['GREEN', 'YELLOW', 'RED', 'EMERGENCY'];
+        if (!validStates.includes(newState)) {
+            throw new Error(`Invalid state: ${newState}. Must be one of: ${validStates.join(', ')}`);
+        }
 
-        return JSON.parse(result.toString());
+        try {
+            const result = await this.contract.submitTransaction(
+                'updateSignalState',
+                lightId,
+                newState,
+                reason || 'Manual update'
+            );
+
+            return JSON.parse(result.toString());
+        } catch (error) {
+            console.error('❌ Erreur updateSignalState:', error.message);
+            throw error;
+        }
     }
 
+    /**
+     * 🚨 TRIGGER EMERGENCY MODE (matches chaincode)
+     * Requires Org2MSP (Emergency Services)
+     * 
+     * @param {string} intersectionId - e.g., "INT-001"
+     * @param {string} direction - "NORTH", "SOUTH", "EAST", or "WEST"
+     * @param {string} vehicleType - "AMBULANCE", "FIRE", or "POLICE"
+     */
+    async triggerEmergency(intersectionId, direction, vehicleType = 'AMBULANCE') {
+        try {
+            if (!this.connected) {
+                throw new Error('Non connecté au réseau Fabric');
+            }
 
+            // Check if we're Org2
+            if (this.currentOrg !== 'Org2') {
+                console.warn('⚠️ Emergency mode requires Org2MSP (Emergency Services)');
+                console.warn(`⚠️ Currently connected as: ${this.currentOrg}`);
+                throw new Error('Emergency mode requires connection as Org2');
+            }
 
+            console.log(`🚨 Transaction: Mode urgence activé`);
+            console.log(`   Intersection: ${intersectionId}`);
+            console.log(`   Direction: ${direction}`);
+            console.log(`   Vehicle: ${vehicleType}`);
+            
+            const result = await this.contract.submitTransaction(
+                'triggerEmergency',
+                intersectionId,
+                direction,
+                vehicleType
+            );
 
+            const response = JSON.parse(result.toString());
+            console.log('✅ Mode urgence enregistré sur la blockchain');
+            
+            return response;
 
-
-
+        } catch (error) {
+            console.error('❌ Erreur triggerEmergency:', error.message);
+            throw error;
+        }
+    }
 
     /**
-     * Se déconnecter
+     * 🟢 CLEAR EMERGENCY MODE (matches chaincode)
+     * Requires Org2MSP (Emergency Services)
+     * 
+     * @param {string} intersectionId - e.g., "INT-001"
      */
+    async clearEmergency(intersectionId) {
+        try {
+            if (!this.connected) {
+                throw new Error('Non connecté au réseau Fabric');
+            }
+
+            // Check if we're Org2
+            if (this.currentOrg !== 'Org2') {
+                console.warn('⚠️ Clearing emergency requires Org2MSP (Emergency Services)');
+                throw new Error('Emergency clear requires connection as Org2');
+            }
+
+            console.log(`✅ Transaction: Mode urgence désactivé pour ${intersectionId}`);
+            
+            const result = await this.contract.submitTransaction(
+                'clearEmergency',
+                intersectionId
+            );
+
+            const response = JSON.parse(result.toString());
+            console.log('✅ Mode normal restauré sur la blockchain');
+            
+            return response;
+
+        } catch (error) {
+            console.error('❌ Erreur clearEmergency:', error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Sync an entire intersection
+     * @param {string} intersectionId - e.g., "INT-001"
+     */
+    async syncIntersection(intersectionId) {
+        try {
+            if (!this.connected) {
+                throw new Error('Non connecté au réseau Fabric');
+            }
+
+            const result = await this.contract.submitTransaction(
+                'syncIntersection',
+                intersectionId
+            );
+
+            return JSON.parse(result.toString());
+
+        } catch (error) {
+            console.error('❌ Erreur syncIntersection:', error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get decision history for an intersection
+     */
+    async getDecisionHistory(intersectionId) {
+        try {
+            if (!this.connected) {
+                throw new Error('Non connecté au réseau Fabric');
+            }
+
+            const result = await this.contract.evaluateTransaction(
+                'getDecisionHistory',
+                intersectionId
+            );
+
+            return JSON.parse(result.toString());
+
+        } catch (error) {
+            console.error('❌ Erreur getDecisionHistory:', error.message);
+            throw error;
+        }
+    }
+
     async disconnect() {
         if (this.gateway) {
             await this.gateway.disconnect();
@@ -326,14 +341,12 @@ class FabricClient {
         }
     }
 
-
-
-
-    /**
-     * Vérifier si connecté
-     */
     isConnected() {
         return this.connected;
+    }
+
+    getCurrentOrg() {
+        return this.currentOrg;
     }
 }
 
