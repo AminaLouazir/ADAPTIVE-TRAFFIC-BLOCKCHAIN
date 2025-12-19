@@ -14,7 +14,7 @@
  *    - Traffic density controls chaos parameters
  *    - High sensitivity to initial conditions
  * 
- * @author Amina Louazir
+ * @author Amina Louazir, Salma Maaquili, Hamza Ait Youssef, Diae Khayatti
  * @course Master IASD - Blockchain
  * @professor Pr. Ikram BEN ABDEL OUAHAB
  */
@@ -22,6 +22,25 @@
 'use strict';
 
 const crypto = require('crypto');
+
+// ============================================================================
+// STANDARD HASH FUNCTION: SHA-256 (REFERENCE)
+// ============================================================================
+
+/**
+ * Standard SHA-256 hash (reference algorithm)
+ * Used for comparison with innovative hash functions
+ * 
+ * @param {string} inputData - Data to hash
+ * @returns {string} 256-bit hash as hex string
+ */
+function sha256Hash(inputData) {
+    return crypto
+        .createHash('sha256')
+        .update(inputData, 'utf8')
+        .digest('hex');
+}
+
 
 // ============================================================================
 // HASH FUNCTION 1: CELLULAR AUTOMATON (CA) BASED
@@ -639,6 +658,8 @@ function verifyDifferentInputs() {
  * @param {string} state - Signal state
  */
 function compareHashFunctions(input, density = 0.5, state = 'GREEN') {
+    
+
     console.log('='.repeat(60));
     console.log('COMPARISON OF TWO INNOVATIVE HASH FUNCTIONS');
     console.log('='.repeat(60));
@@ -657,13 +678,17 @@ function compareHashFunctions(input, density = 0.5, state = 'GREEN') {
     const hybrid = hybridTrafficHash(input, density, state);
     console.log(`\n3. HYBRID (CA XOR Chaotic):`);
     console.log(`   ${hybrid}`);
+
+    const shaHash = sha256Hash(input);
+    console.log('STANDARD SHA-256 HASH (REFERENCE):');
     
     console.log('\n' + '='.repeat(60));
     
     return {
         cellularAutomaton: caHash,
         chaotic: chaoticHash,
-        hybrid: hybrid
+        hybrid: hybrid,
+        sha256: shaHash
     };
 }
 
@@ -680,7 +705,11 @@ module.exports = {
     
     // Hybrid: Combined approach
     hybridTrafficHash,
-    
+
+    // Standard reference hash
+    sha256Hash,
+
+
     // Application-specific hashes
     intersectionHash,
     blockHashWithTraffic,

@@ -9,7 +9,7 @@
  * - Decision recording with CA hash proof
  * - Requires endorsement from both organizations
  * 
- * @author Amina Louazir
+ * @author Amina Louazir, Salma Maaquili, Hamza Ait Youssef, Diae Khayatti
  * @course Master IASD - Blockchain
  * @professor Pr. Ikram BEN ABDEL OUAHAB
  */
@@ -20,7 +20,7 @@ const { Contract } = require('fabric-contract-api');
 const { TrafficLight, SignalState, Direction } = require('./models/trafficLight');
 const { Intersection } = require('./models/intersection');
 const { Decision, DecisionType } = require('./models/decision');
-const { trafficAdaptiveHash, chaoticTrafficHash, hybridTrafficHash, intersectionHash } = require('./cellularAutomaton');
+const { trafficAdaptiveHash, chaoticTrafficHash, hybridTrafficHash,sha256Hash, intersectionHash } = require('./cellularAutomaton');
 
 // Hash function types
 const HashType = {
@@ -637,6 +637,8 @@ class TrafficLightContract extends Contract {
         const caHash = trafficAdaptiveHash(inputData, densityFloat, signalState, 0);
         const chaoticHash = chaoticTrafficHash(inputData, densityFloat, signalState);
         const hybridHash = hybridTrafficHash(inputData, densityFloat, signalState, 0);
+        const shaHash = sha256Hash(inputData);
+
         
         return JSON.stringify({
             input: inputData,
@@ -653,10 +655,16 @@ class TrafficLightContract extends Contract {
                     description: 'Uses chaos theory for unpredictable hashing',
                     hash: chaoticHash
                 },
+                
                 hybrid: {
                     algorithm: 'Hybrid (CA XOR Chaotic)',
                     description: 'Maximum security combining both methods',
                     hash: hybridHash
+                },
+                sha256: {
+                    algorithm: 'SHA-256',
+                    description: 'Standard cryptographic hash (reference)',
+                    hash: shaHash
                 }
             }
         });

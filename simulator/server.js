@@ -733,6 +733,12 @@ app.post('/api/blockchain/compare-hashes', async (req, res) => {
               algorithm: 'Hybrid (CA XOR Chaotic)',
               description: 'Maximum security combining both methods',
               hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15)
+            },
+            // 🔐 ADD THIS
+            sha256: {
+              algorithm: 'SHA-256',
+              description: 'Standard cryptographic hash (reference)',
+              hash: 'SIMULATION_SHA256_' + Math.random().toString(36).substring(2, 15)
             }
           }
         }

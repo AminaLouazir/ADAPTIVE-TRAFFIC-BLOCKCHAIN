@@ -391,6 +391,18 @@
                     <div class="hash-output" id="hybridHashOutput">-</div>
                     <div class="blockchain-badge">✓ Used in Smart Contract</div>
                 </div>
+                <div class="hash-card hybrid">
+                    <div class="hash-header">
+                        <div class="hash-icon">🔐</div>
+                        <div>
+                            <div class="hash-title">4. SHA-256 (Reference)</div>
+                            <div class="hash-algo">Algorithm: SHA-256</div>
+                            <div class="hash-desc">Standard cryptographic hash (no traffic adaptation)</div>
+                        </div>
+                    </div>
+                    <div class="hash-output" id="sha256HashOutput">-</div>
+                    <div class="blockchain-badge">✓ Used in Smart Contract</div>
+                </div>
 
                 <!-- Info Box -->
                 <div class="info-box">
@@ -463,6 +475,8 @@
         document.getElementById('densitySlider').addEventListener('input', function(e) {
             document.getElementById('densityValue').textContent = e.target.value + '%';
         });
+        
+
 
         async function generateHashes() {
             const input = document.getElementById('hashInput').value;
@@ -506,6 +520,10 @@
                     document.getElementById('hybridHashOutput').textContent = 
                         hashes.hybrid.hash + '\n\n' +
                         '📌 ' + hashes.hybrid.description;
+
+                    document.getElementById('sha256HashOutput').textContent =
+                        hashes.sha256.hash + '\n\n' +
+                        '📌 Fixed hash, independent of traffic context';
 
                     // Show results
                     document.getElementById('loadingIndicator').style.display = 'none';

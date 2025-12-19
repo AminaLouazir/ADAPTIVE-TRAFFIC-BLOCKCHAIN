@@ -434,6 +434,8 @@
 document.getElementById('densitySlider').addEventListener('input', function(e) {
     document.getElementById('densityValue').textContent = e.target.value;
 });
+// SHA-256 Hash (Reference)
+
 
 async function generateHashes() {
     const input = document.getElementById('hashInput').value;
@@ -475,6 +477,8 @@ async function generateHashes() {
             
             // Hybrid Hash
             document.getElementById('hybridHashValue').textContent = hashes.hybrid.hash;
+
+            document.getElementById('sha256HashValue').textContent = hashes.sha256.hash;
             
             addLog(`🔐 Generated hashes for density ${Math.round(density * 100)}%, state ${state}`);
         } else {
@@ -650,6 +654,16 @@ async function generateHashes() {
                 </div>
             </div>
             <div class="hash-value" id="hybridHashValue">-</div>
+        </div>
+        <div class="hash-result-card hybrid-hash">
+            <div class="hash-header">
+                <span class="hash-icon">🔐</span>
+                <div>
+                    <div class="hash-title">SHA-256 (Reference)</div>
+                    <div class="hash-desc">Standard cryptographic hash (non-adaptive)</div>
+                </div>
+            </div>
+            <div class="hash-value" id="sha256HashValue">-</div>
         </div>
 
         <div style="margin-top: 15px; padding: 12px; background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 5px;">
