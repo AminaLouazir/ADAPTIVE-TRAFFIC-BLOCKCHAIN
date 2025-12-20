@@ -126,5 +126,4 @@ Besoin d'aide ? Options que je peux faire pour vous:
 - (C) Inspecter `chaincode/traffic-light/lib` et `network/docker-compose-net.yml` pour confirmer les montages et chemins avant tentative de déploiement.
 
 ---
-*(Fichier généré automatiquement — adapté à partir de l'audit initial du dépôt.)*
 
