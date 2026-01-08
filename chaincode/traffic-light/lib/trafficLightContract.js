@@ -333,9 +333,17 @@ class TrafficLightContract extends Contract {
         // Update state
         light.updateState(newState, txTimestamp);
 
+        // Get intersection to determine hash algorithm
+        const intersectionJSON = await ctx.stub.getState(light.intersectionId);
+        let hashAlgorithm = 'CA';  // Default
+        if (intersectionJSON && intersectionJSON.length > 0) {
+            const intersection = Intersection.fromJSON(JSON.parse(intersectionJSON.toString()));
+            hashAlgorithm = intersection.hashAlgorithm || 'CA';
+        }
+
         // Generate adaptive hash based on traffic conditions
         const hashInput = `${lightId}|${oldState}|${newState}|${reason}|${txTimestamp}`;
-        const hash = trafficAdaptiveHash(hashInput, light.density, newState, 0);
+        const hash = this._generateHash(hashInput, light.density, newState, 0, hashAlgorithm);
 
         // Store updated light
         await ctx.stub.putState(lightId, Buffer.from(JSON.stringify(light.toJSON())));
@@ -459,6 +467,69 @@ class TrafficLightContract extends Contract {
         });
     }
 
+    /**
+     * Set the hash algorithm for an intersection
+     * Allows switching between CA, CHAOTIC, and HYBRID algorithms
+     * 
+     * @param {Context} ctx - Transaction context
+     * @param {string} intersectionId - Intersection ID
+     * @param {string} algorithm - Hash algorithm: 'CA', 'CHAOTIC', or 'HYBRID'
+     */
+    async setHashAlgorithm(ctx, intersectionId, algorithm) {
+        console.info('============= START : Set Hash Algorithm ===========');
+
+        const txTimestamp = this._getTxTimestamp(ctx);
+
+        // Validate algorithm
+        const validAlgorithms = ['CA', 'CHAOTIC', 'HYBRID'];
+        const normalizedAlgorithm = algorithm.toUpperCase();
+        if (!validAlgorithms.includes(normalizedAlgorithm)) {
+            throw new Error(`Invalid algorithm: ${algorithm}. Must be one of: ${validAlgorithms.join(', ')}`);
+        }
+
+        const intersectionJSON = await ctx.stub.getState(intersectionId);
+        if (!intersectionJSON || intersectionJSON.length === 0) {
+            throw new Error(`Intersection ${intersectionId} does not exist`);
+        }
+
+        const intersection = Intersection.fromJSON(JSON.parse(intersectionJSON.toString()));
+        const oldAlgorithm = intersection.hashAlgorithm || 'CA';
+        
+        intersection.setHashAlgorithm(normalizedAlgorithm, txTimestamp);
+        await ctx.stub.putState(intersectionId, Buffer.from(JSON.stringify(intersection.toJSON())));
+
+        console.info(`✅ Hash algorithm changed: ${oldAlgorithm} → ${normalizedAlgorithm}`);
+        console.info('============= END : Set Hash Algorithm ===========');
+
+        return JSON.stringify({
+            intersectionId: intersectionId,
+            oldAlgorithm: oldAlgorithm,
+            newAlgorithm: normalizedAlgorithm,
+            timestamp: txTimestamp
+        });
+    }
+
+    /**
+     * Get the current hash algorithm for an intersection
+     * 
+     * @param {Context} ctx - Transaction context
+     * @param {string} intersectionId - Intersection ID
+     */
+    async getHashAlgorithm(ctx, intersectionId) {
+        const intersectionJSON = await ctx.stub.getState(intersectionId);
+        if (!intersectionJSON || intersectionJSON.length === 0) {
+            throw new Error(`Intersection ${intersectionId} does not exist`);
+        }
+
+        const intersection = Intersection.fromJSON(JSON.parse(intersectionJSON.toString()));
+        
+        return JSON.stringify({
+            intersectionId: intersectionId,
+            hashAlgorithm: intersection.hashAlgorithm || 'CA',
+            availableAlgorithms: ['CA', 'CHAOTIC', 'HYBRID']
+        });
+    }
+
     // ==================== EMERGENCY HANDLING ====================
 
     /**
@@ -507,9 +578,10 @@ class TrafficLightContract extends Contract {
 
         await ctx.stub.putState(intersectionId, Buffer.from(JSON.stringify(intersection.toJSON())));
 
-        // Generate hash and record decision
+        // Generate hash and record decision (use intersection's hashAlgorithm)
+        const hashAlgorithm = intersection.hashAlgorithm || 'CA';
         const hashInput = `EMERGENCY|${intersectionId}|${direction}|${vehicleType}|${txTimestamp}`;
-        const hash = trafficAdaptiveHash(hashInput, 1.0, SignalState.EMERGENCY, 10);
+        const hash = this._generateHash(hashInput, 1.0, SignalState.EMERGENCY, 10, hashAlgorithm);
 
         const decision = Decision.createEmergencyTrigger(
             intersectionId,
@@ -571,9 +643,10 @@ class TrafficLightContract extends Contract {
 
         await ctx.stub.putState(intersectionId, Buffer.from(JSON.stringify(intersection.toJSON())));
 
-        // Generate hash and record decision
+        // Generate hash and record decision (use intersection's hashAlgorithm)
+        const hashAlgorithm = intersection.hashAlgorithm || 'CA';
         const hashInput = `CLEAR_EMERGENCY|${intersectionId}|${txTimestamp}`;
-        const hash = trafficAdaptiveHash(hashInput, 0.5, SignalState.GREEN, 0);
+        const hash = this._generateHash(hashInput, 0.5, SignalState.GREEN, 0, hashAlgorithm);
 
         const decision = Decision.createEmergencyClear(intersectionId, hash, mspId, txTimestamp);
         await ctx.stub.putState(decision.id, Buffer.from(JSON.stringify(decision.toJSON())));

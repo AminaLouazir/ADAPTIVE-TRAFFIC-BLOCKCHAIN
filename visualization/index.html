@@ -489,6 +489,60 @@ async function generateHashes() {
         alert('Error: ' + error.message);
     }
 }
+
+/**
+ * Load the current hash algorithm setting from blockchain
+ */
+async function loadCurrentAlgorithm() {
+    const intersectionId = document.getElementById('intersectionSelect').value;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/blockchain/hash-algorithm/${intersectionId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            document.getElementById('algorithmSelect').value = result.data.hashAlgorithm;
+            addLog(`✅ Loaded algorithm for ${intersectionId}: ${result.data.hashAlgorithm}`);
+        }
+    } catch (error) {
+        console.warn('Could not load current algorithm:', error.message);
+    }
+}
+
+/**
+ * Save the selected hash algorithm to the blockchain
+ */
+async function setHashAlgorithm() {
+    const intersectionId = document.getElementById('intersectionSelect').value;
+    const algorithm = document.getElementById('algorithmSelect').value;
+
+    try {
+        const response = await fetch(`${API_URL}/api/blockchain/hash-algorithm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                intersectionId: intersectionId,
+                algorithm: algorithm
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const data = result.data;
+            addLog(`✅ Algorithm changed: ${data.oldAlgorithm} → ${data.newAlgorithm}`);
+            alert(`✅ Algorithm Updated!\n\nIntersection: ${data.intersectionId}\nOld: ${data.oldAlgorithm}\nNew: ${data.newAlgorithm}\n\nRecorded on blockchain.`);
+        } else {
+            alert('❌ Failed to update algorithm: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Set algorithm error:', error);
+        alert('❌ Error: ' + error.message);
+    }
+}
+
+// Load algorithm when intersection changes
+document.getElementById('intersectionSelect')?.addEventListener('change', loadCurrentAlgorithm);
 </script>
 </head>
 <body>
@@ -614,10 +668,34 @@ async function generateHashes() {
             </div>
         </div>
 
-        <button onclick="generateHashes()" 
-                style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 15px;">
-            🔐 Generate Hashes
-        </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+                <label style="font-size: 0.85em; color: #666;">🔧 Active Hash Algorithm:</label>
+                <select id="algorithmSelect" style="width: 100%; padding: 8px; border-radius: 5px; border: 2px solid #e5e7eb;">
+                    <option value="CA">🔢 Cellular Automaton</option>
+                    <option value="CHAOTIC">🌀 Chaotic Maps</option>
+                    <option value="HYBRID">⚡ Hybrid (CA ⊕ Chaotic)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.85em; color: #666;">📍 Intersection:</label>
+                <select id="intersectionSelect" style="width: 100%; padding: 8px; border-radius: 5px; border: 2px solid #e5e7eb;">
+                    <option value="INT-001">INT-001 (Main St)</option>
+                    <option value="INT-002">INT-002 (Zerktouni)</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button onclick="generateHashes()" 
+                    style="flex: 2; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                🔐 Generate Hashes
+            </button>
+            <button onclick="setHashAlgorithm()" 
+                    style="flex: 1; padding: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                💾 Save
+            </button>
+        </div>
     </div>
 
     <!-- Results Section -->
@@ -1414,6 +1492,13 @@ function spawnEmergencyCar(direction, vehicleType) {
         connectWebSocket();
         setInterval(moveCars, 50);
         setInterval(updateCycleTime, 1000);
+
+        // Load current hash algorithm setting
+        setTimeout(() => {
+            if (typeof loadCurrentAlgorithm === 'function') {
+                loadCurrentAlgorithm();
+            }
+        }, 1000);
 
         // Add some initial cars
         setTimeout(() => addCar('north'), 500);

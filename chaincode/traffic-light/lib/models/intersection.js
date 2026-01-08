@@ -33,6 +33,7 @@ class Intersection {
         this.emergencyVehicleType = null;
         this.syncMode = 'ADAPTIVE';  // ADAPTIVE, FIXED, EMERGENCY
         this.cycleTime = 120;  // Total cycle time in seconds
+        this.hashAlgorithm = 'CA';  // 'CA', 'CHAOTIC', or 'HYBRID'
         this.createdAt = timestamp;
         this.updatedAt = timestamp;
         this.lastSyncHash = null;  // Hash of last synchronized state
@@ -114,6 +115,20 @@ class Intersection {
     }
 
     /**
+     * Set hash algorithm for this intersection
+     * @param {string} algorithm - 'CA', 'CHAOTIC', or 'HYBRID'
+     * @param {number} timestamp - Transaction timestamp
+     */
+    setHashAlgorithm(algorithm, timestamp) {
+        const validAlgorithms = ['CA', 'CHAOTIC', 'HYBRID'];
+        if (!validAlgorithms.includes(algorithm.toUpperCase())) {
+            throw new Error(`Invalid algorithm: ${algorithm}. Must be one of: ${validAlgorithms.join(', ')}`);
+        }
+        this.hashAlgorithm = algorithm.toUpperCase();
+        this.updatedAt = timestamp;
+    }
+
+    /**
      * Convert to JSON for storage
      * @returns {Object} JSON representation
      */
@@ -130,6 +145,7 @@ class Intersection {
             emergencyVehicleType: this.emergencyVehicleType,
             syncMode: this.syncMode,
             cycleTime: this.cycleTime,
+            hashAlgorithm: this.hashAlgorithm,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
             lastSyncHash: this.lastSyncHash
@@ -154,6 +170,7 @@ class Intersection {
         intersection.emergencyVehicleType = json.emergencyVehicleType;
         intersection.syncMode = json.syncMode;
         intersection.cycleTime = json.cycleTime;
+        intersection.hashAlgorithm = json.hashAlgorithm || 'CA';
         intersection.createdAt = json.createdAt;
         intersection.updatedAt = json.updatedAt;
         intersection.lastSyncHash = json.lastSyncHash;

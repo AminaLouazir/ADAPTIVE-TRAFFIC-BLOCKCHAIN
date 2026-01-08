@@ -28,7 +28,6 @@
         }
     },
     "organizations": {
-        
         "Org2": {
             "mspid": "Org2MSP",
             "peers": [
@@ -49,7 +48,6 @@
         }
     },
     "peers": {
-        
         "peer0.org2.example.com": {
             "url": "grpc://peer0.org2.example.com:9051",
             "grpcOptions": {
@@ -59,7 +57,6 @@
         }
     },
     "certificateAuthorities": {
-        
         "ca.org2.example.com": {
             "url": "http://ca.org2.example.com:8054",
             "caName": "ca-org2",

@@ -24,16 +24,26 @@ class FabricClient {
         
             this.currentOrg = orgName;
 
-            const ccpPath = path.resolve(
-                __dirname,
-                '..',
-                'network',
-                `connection-${orgName.toLowerCase()}.json`
-            );
+            // Try multiple paths for connection profile (Docker vs local)
+            const possiblePaths = [
+                path.resolve(__dirname, 'network', `connection-${orgName.toLowerCase()}.json`),  // Docker: /app/network
+                path.resolve(__dirname, '..', 'network', `connection-${orgName.toLowerCase()}.json`),  // Local: ../network
+                path.resolve(process.cwd(), 'network', `connection-${orgName.toLowerCase()}.json`)  // CWD/network
+            ];
 
-            if (!fs.existsSync(ccpPath)) {
-                throw new Error(`Connection profile not found: ${ccpPath}`);
+            let ccpPath = null;
+            for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    ccpPath = p;
+                    break;
+                }
             }
+
+            if (!ccpPath) {
+                throw new Error(`Connection profile not found. Tried: ${possiblePaths.join(', ')}`);
+            }
+            
+            console.log(`📁 Using connection profile: ${ccpPath}`);
         
             const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
 
@@ -56,7 +66,8 @@ class FabricClient {
                 wallet: this.wallet,
                 identity: adminIdentity,
                 discovery: { 
-                    enabled: false
+                    enabled: true,
+                    asLocalhost: false
                 }
             });
 

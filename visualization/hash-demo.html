@@ -316,9 +316,9 @@
                 <div class="slider-group">
                     <div class="slider-container">
                         <div class="slider-label">
-                            Traffic Density: <span class="slider-value" id="densityValue">50%</span>
+                            Traffic Density: <span class="slider-value" id="densityValue"></span>
                         </div>
-                        <input type="range" id="densitySlider" min="0" max="100" value="50">
+                        <input type="range" id="densitySlider" min="0" max="100" >
                         <small style="color: #6b7280; margin-top: 5px;">Hash adapts based on traffic density</small>
                     </div>
 
@@ -334,9 +334,34 @@
                     </div>
                 </div>
 
-                <button class="generate-btn" onclick="generateHashes()">
-                    🔐 Generate & Compare Hashes
-                </button>
+                <div class="slider-group" style="margin-top: 20px;">
+                    <div class="slider-container">
+                        <div class="slider-label">🔧 Active Hash Algorithm:</div>
+                        <select id="algorithmSelect">
+                            <option value="CA">🔢 Cellular Automaton (CA)</option>
+                            <option value="CHAOTIC">🌀 Chaotic Maps</option>
+                            <option value="HYBRID">⚡ Hybrid (CA ⊕ Chaotic)</option>
+                        </select>
+                        <small style="color: #6b7280; margin-top: 5px;">Algorithm used for blockchain decision records</small>
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-label">📍 Intersection ID:</div>
+                        <select id="intersectionSelect">
+                            <option value="INT-001">INT-001 (Main St & 1st Ave)</option>
+                            <option value="INT-002">INT-002 (Blvd Zerktouni)</option>
+                        </select>
+                        <small style="color: #6b7280; margin-top: 5px;">Select intersection to configure</small>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="generate-btn" onclick="generateHashes()" style="flex: 2;">
+                        🔐 Generate & Compare Hashes
+                    </button>
+                    <button class="generate-btn" onclick="setHashAlgorithm()" style="flex: 1; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        💾 Save Algorithm to Blockchain
+                    </button>
+                </div>
             </div>
 
             <div id="loadingIndicator" class="loading" style="display: none;">
@@ -471,12 +496,25 @@
     <script>
         const API_URL = 'http://localhost:3000';
 
-        // Update density display
-        document.getElementById('densitySlider').addEventListener('input', function(e) {
-            document.getElementById('densityValue').textContent = e.target.value + '%';
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update density display
+            document.getElementById('densitySlider').addEventListener('input', function(e) {
+                document.getElementById('densityValue').textContent = e.target.value + '%';
+                // Auto-regenerate hashes when slider moves
+                if (document.getElementById('hashInput').value.trim()) {
+                    generateHashes();
+                }
+            });
+            
+            // Also regenerate when state changes
+            document.getElementById('stateSelect').addEventListener('change', function() {
+                if (document.getElementById('hashInput').value.trim()) {
+                    generateHashes();
+                }
+            });
         });
         
-
 
         async function generateHashes() {
             const input = document.getElementById('hashInput').value;
@@ -547,7 +585,69 @@
 
         // Generate hashes on page load with default values
         window.addEventListener('load', () => {
+            loadCurrentAlgorithm();
             setTimeout(generateHashes, 500);
+        });
+
+        /**
+         * Load the current hash algorithm setting from blockchain
+         */
+        async function loadCurrentAlgorithm() {
+            const intersectionId = document.getElementById('intersectionSelect').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/blockchain/hash-algorithm/${intersectionId}`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    document.getElementById('algorithmSelect').value = result.data.hashAlgorithm;
+                    console.log(`✅ Current algorithm for ${intersectionId}: ${result.data.hashAlgorithm}`);
+                }
+            } catch (error) {
+                console.warn('Could not load current algorithm:', error.message);
+            }
+        }
+
+        /**
+         * Save the selected hash algorithm to the blockchain
+         */
+        async function setHashAlgorithm() {
+            const intersectionId = document.getElementById('intersectionSelect').value;
+            const algorithm = document.getElementById('algorithmSelect').value;
+
+            // Show loading
+            document.getElementById('loadingIndicator').style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_URL}/api/blockchain/hash-algorithm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        intersectionId: intersectionId,
+                        algorithm: algorithm
+                    })
+                });
+
+                const result = await response.json();
+                document.getElementById('loadingIndicator').style.display = 'none';
+
+                if (result.success) {
+                    const data = result.data;
+                    alert(`✅ Algorithm Updated!\n\nIntersection: ${data.intersectionId}\nOld: ${data.oldAlgorithm}\nNew: ${data.newAlgorithm}\n\nThis change is now recorded on the blockchain.`);
+                    console.log('Algorithm change recorded:', data);
+                } else {
+                    alert('❌ Failed to update algorithm: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                console.error('Set algorithm error:', error);
+                alert('❌ Error connecting to blockchain: ' + error.message);
+            }
+        }
+
+        // Reload algorithm when intersection changes
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('intersectionSelect').addEventListener('change', loadCurrentAlgorithm);
         });
     </script>
 </body>

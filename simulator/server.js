@@ -11,6 +11,14 @@ const express = require('express');
 const cors = require('cors');
 const FabricClient = require('./fabric-client');
 
+// Import actual hash functions from local copy
+const {
+  trafficAdaptiveHash,
+  chaoticTrafficHash,
+  hybridTrafficHash,
+  sha256Hash
+} = require('./cellularAutomaton');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -709,10 +717,46 @@ app.post('/api/blockchain/compare-hashes', async (req, res) => {
   try {
     const { inputData, density, signalState } = req.body;
     
-    if (!fabricConnected) {
-      return res.json({
+    // Validate inputs
+    if (!inputData || density === undefined || !signalState) {
+      return res.status(400).json({
         success: false,
-        message: 'Not connected to blockchain - using simulated hashes',
+        error: 'Missing required parameters: inputData, density, signalState'
+      });
+    }
+
+    const validStates = ['RED', 'YELLOW', 'GREEN', 'EMERGENCY'];
+    if (!validStates.includes(signalState)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid signal state'
+      });
+    }
+    
+    if (!fabricConnected) {
+      console.log('⚠️  Blockchain not connected - using local hash functions');
+      
+      // ACTUALLY CALL THE REAL HASH FUNCTIONS with dynamic rule selection
+      const caHash = trafficAdaptiveHash(inputData, density, signalState, 0);
+      const chaoticHash = chaoticTrafficHash(inputData, density, signalState);
+      const hybridHash = hybridTrafficHash(inputData, density, signalState, 0);
+      const shaHash = sha256Hash(inputData);
+      
+      // Determine which rule was actually used by the CA hash
+      let ruleUsed;
+      if (signalState === 'EMERGENCY') {
+        ruleUsed = 'Rule 184';
+      } else if (density < 0.3) {
+        ruleUsed = signalState === 'GREEN' ? 'Rule 30' : 'Rule 90';
+      } else if (density < 0.7) {
+        ruleUsed = signalState === 'YELLOW' ? 'Rule 110' : 'Rule 90';
+      } else {
+        ruleUsed = signalState === 'RED' ? 'Rule 110' : 'Rule 184';
+      }
+      
+      return res.json({
+        success: true,
+        message: 'Local hash computation (blockchain not connected)',
         data: {
           input: inputData,
           density: density,
@@ -720,25 +764,24 @@ app.post('/api/blockchain/compare-hashes', async (req, res) => {
           hashes: {
             cellularAutomaton: {
               algorithm: 'Cellular Automaton (Rule 30/90/110/184)',
-              description: 'Adapts CA rule based on traffic conditions',
-              hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15),
-              ruleUsed: 'Rule 30 (simulation)'
+              description: `Adapts CA rule based on traffic conditions - Using ${ruleUsed} for density=${Math.round(density*100)}%, state=${signalState}`,
+              hash: caHash,
+              ruleUsed: ruleUsed  // REAL dynamic rule, not hardcoded!
             },
             chaotic: {
               algorithm: 'Chaotic Maps (Logistic/Tent/Henon)',
               description: 'Uses chaos theory for unpredictable hashing',
-              hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15)
+              hash: chaoticHash
             },
             hybrid: {
               algorithm: 'Hybrid (CA XOR Chaotic)',
               description: 'Maximum security combining both methods',
-              hash: 'SIMULATION_MODE_' + Math.random().toString(36).substring(2, 15)
+              hash: hybridHash
             },
-            // 🔐 ADD THIS
             sha256: {
               algorithm: 'SHA-256',
               description: 'Standard cryptographic hash (reference)',
-              hash: 'SIMULATION_SHA256_' + Math.random().toString(36).substring(2, 15)
+              hash: shaHash
             }
           }
         }
@@ -772,10 +815,101 @@ app.post('/api/blockchain/compare-hashes', async (req, res) => {
     console.error('❌ Hash comparison error:', error.message);
     res.status(500).json({
       success: false,
+      error: 'Failed to generate hashes: ' + error.message
+    });
+  }
+});
+
+/**
+ * 🔧 GET HASH ALGORITHM FOR INTERSECTION
+ * Returns the current hash algorithm setting for an intersection
+ */
+app.get('/api/blockchain/hash-algorithm/:intersectionId', async (req, res) => {
+  try {
+    const { intersectionId } = req.params;
+    
+    if (!fabricConnected) {
+      return res.status(503).json({
+        success: false,
+        error: 'Not connected to blockchain'
+      });
+    }
+    
+    const result = await fabricClient.contract.evaluateTransaction(
+      'getHashAlgorithm',
+      intersectionId
+    );
+    
+    const data = JSON.parse(result.toString());
+    
+    res.json({
+      success: true,
+      data: data
+    });
+    
+  } catch (error) {
+    console.error('❌ Get hash algorithm error:', error.message);
+    res.status(500).json({
+      success: false,
       error: error.message
     });
   }
 });
+
+/**
+ * 🔧 SET HASH ALGORITHM FOR INTERSECTION
+ * Changes the hash algorithm for an intersection (CA, CHAOTIC, or HYBRID)
+ */
+app.post('/api/blockchain/hash-algorithm', async (req, res) => {
+  try {
+    const { intersectionId, algorithm } = req.body;
+    
+    if (!intersectionId || !algorithm) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: intersectionId, algorithm'
+      });
+    }
+    
+    const validAlgorithms = ['CA', 'CHAOTIC', 'HYBRID'];
+    if (!validAlgorithms.includes(algorithm.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid algorithm: ${algorithm}. Must be one of: ${validAlgorithms.join(', ')}`
+      });
+    }
+    
+    if (!fabricConnected) {
+      return res.status(503).json({
+        success: false,
+        error: 'Not connected to blockchain'
+      });
+    }
+    
+    const result = await fabricClient.contract.submitTransaction(
+      'setHashAlgorithm',
+      intersectionId,
+      algorithm.toUpperCase()
+    );
+    
+    const data = JSON.parse(result.toString());
+    
+    console.log(`✅ Hash algorithm changed for ${intersectionId}: ${data.oldAlgorithm} → ${data.newAlgorithm}`);
+    
+    res.json({
+      success: true,
+      data: data
+    });
+    
+  } catch (error) {
+    console.error('❌ Set hash algorithm error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down gracefully...');
