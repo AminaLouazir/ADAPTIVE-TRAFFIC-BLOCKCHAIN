@@ -66,7 +66,7 @@ class FabricClient {
                 wallet: this.wallet,
                 identity: adminIdentity,
                 discovery: { 
-                    enabled: true,
+                    enabled: false,  // FIXED: Disable discovery, use static endpoints
                     asLocalhost: false
                 }
             });
