@@ -1,0 +1,33 @@
+{
+  "name": "blockchain-soc-agents",
+  "version": "1.0.0",
+  "description": "Security Operations Center agents for Adaptive Traffic Blockchain",
+  "main": "sensor.js",
+  "scripts": {
+    "sensor": "node sensor.js",
+    "collector": "node collector.js",
+    "analyzer": "node analyzer.js",
+    "responder": "node responder.js",
+    "start-all": "bash start-soc.sh",
+    "stop-all": "bash stop-soc.sh",
+    "test": "bash test-soc.sh"
+  },
+  "keywords": [
+    "soc",
+    "security",
+    "blockchain",
+    "agents",
+    "llm",
+    "traffic"
+  ],
+  "author": "Amina Louazir",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
