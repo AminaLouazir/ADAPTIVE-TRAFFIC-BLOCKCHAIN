@@ -1,0 +1,40 @@
+╔════════════════════════════════════════════════════════╗
+║         SOC COLLECTOR AGENT - STARTED                  ║
+╚════════════════════════════════════════════════════════╝
+[COLLECTOR] 🟢 Listening on http://localhost:6002
+[COLLECTOR] 📊 Health check: GET /health
+[COLLECTOR] 📥 Collection endpoint: POST /collect
+[COLLECTOR] 📋 Query events: GET /events?limit=50&severity=HIGH
+[COLLECTOR] 📈 Statistics: GET /stats
+[COLLECTOR] 💾 Logs: soc-agents/logs/collected-events.json
+
+[COLLECTOR] 📥 Received: invalid_state_transition | Severity: HIGH | Source: INT-001-NORTH
+[COLLECTOR] ✅ Forwarded to Analyzer: invalid_state_transition
+[COLLECTOR] 🤖 AI Action: alert
+[COLLECTOR] 📥 Received: density_manipulation | Severity: CRITICAL | Source: INT-001-SOUTH
+[COLLECTOR] ✅ Forwarded to Analyzer: density_manipulation
+[COLLECTOR] 🤖 AI Action: block
+[COLLECTOR] 📥 Received: emergency_abuse | Severity: HIGH | Source: INT-001
+[COLLECTOR] ✅ Forwarded to Analyzer: emergency_abuse
+[COLLECTOR] 🤖 AI Action: escalate
+[COLLECTOR] 📥 Received: rapid_state_changes | Severity: HIGH | Source: INT-002-EAST
+[COLLECTOR] ✅ Forwarded to Analyzer: rapid_state_changes
+[COLLECTOR] 🤖 AI Action: alert
+[COLLECTOR] 📥 Received: unauthorized_emergency | Severity: CRITICAL | Source: INT-002
+[COLLECTOR] ✅ Forwarded to Analyzer: unauthorized_emergency
+[COLLECTOR] 🤖 AI Action: block
+[COLLECTOR] 📥 Received: invalid_state_transition | Severity: HIGH | Source: INT-001-NORTH
+[COLLECTOR] ✅ Forwarded to Analyzer: invalid_state_transition
+[COLLECTOR] 🤖 AI Action: alert
+[COLLECTOR] 📥 Received: density_manipulation | Severity: CRITICAL | Source: INT-001-SOUTH
+[COLLECTOR] ✅ Forwarded to Analyzer: density_manipulation
+[COLLECTOR] 🤖 AI Action: block
+[COLLECTOR] 📥 Received: emergency_abuse | Severity: HIGH | Source: INT-001
+[COLLECTOR] ✅ Forwarded to Analyzer: emergency_abuse
+[COLLECTOR] 🤖 AI Action: escalate
+[COLLECTOR] 📥 Received: rapid_state_changes | Severity: HIGH | Source: INT-002-EAST
+[COLLECTOR] ✅ Forwarded to Analyzer: rapid_state_changes
+[COLLECTOR] 🤖 AI Action: alert
+[COLLECTOR] 📥 Received: unauthorized_emergency | Severity: CRITICAL | Source: INT-002
+[COLLECTOR] ✅ Forwarded to Analyzer: unauthorized_emergency
+[COLLECTOR] 🤖 AI Action: block
