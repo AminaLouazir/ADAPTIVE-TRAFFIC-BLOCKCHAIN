@@ -9,7 +9,6 @@
 const WebSocket = require('ws');
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
 const FabricClient = require('./fabric-client');
 
 // Import actual hash functions from local copy
@@ -25,26 +24,6 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-
-// SOC Integration
-const SOC_SENSOR_URL = 'http://localhost:6001/event';
-const SOC_ENABLED = process.env.SOC_ENABLED !== 'false'; // Enable by default
-
-// Helper function to notify SOC Sensor
-async function notifySOC(eventType, data) {
-  if (!SOC_ENABLED) return;
-  
-  try {
-    await axios.post(SOC_SENSOR_URL, {
-      type: eventType,
-      ...data,
-      timestamp: Date.now()
-    }, { timeout: 2000 });
-  } catch (err) {
-    // Silent fail - SOC is optional
-    // console.log(`[SOC] Could not notify: ${err.message}`);
-  }
-}
 
 // Client Fabric for Org1 (Traffic Management)
 const fabricClient = new FabricClient();
@@ -219,14 +198,6 @@ async function updateTrafficStateOnBlockchain(newState, newDensity, newVehicleCo
           newDensity,
           newWaitTime
         );
-        
-        // Notify SOC about density update
-        await notifySOC('densityUpdate', {
-          lightId: fabricLightId,
-          density: newDensity,
-          vehicleCount: newVehicleCount,
-          waitTime: newWaitTime
-        });
       
         // 2. If state changed, update signal
         if (newState !== oldState) {
@@ -237,14 +208,6 @@ async function updateTrafficStateOnBlockchain(newState, newDensity, newVehicleCo
             reason
           );
           console.log(`📝 ✅ TRANSACTION BLOCKCHAIN: ${oldState} → ${newState} (Densité: ${Math.round(newDensity * 100)}%)`);
-          
-          // Notify SOC about state change
-          await notifySOC('stateChange', {
-            lightId: fabricLightId,
-            oldState: oldState,
-            newState: newState,
-            reason: reason
-          });
         }
       
       } catch (error) {
@@ -373,15 +336,6 @@ app.post('/api/traffic/override', async (req, res) => {
     const newStatus = status || trafficState.status;
     const newQueueLength = Math.floor(newDensity / 10);
     const newWaitTime = Math.floor(newDensity * 0.8);
-    
-    // Notify SOC about manual override attempt
-    await notifySOC('manualOverride', {
-      lightId: trafficState.lightId,
-      requestedState: newStatus,
-      requestedDensity: newDensity,
-      currentState: trafficState.status,
-      source: 'manual_api_call'
-    });
     
     await updateTrafficStateOnBlockchain(
       newStatus,
@@ -554,14 +508,6 @@ app.post('/api/traffic/emergency', async (req, res) => {
       );
       
       console.log('🚨 MODE URGENCE ENREGISTRÉ SUR LA BLOCKCHAIN');
-      
-      // Notify SOC about emergency trigger
-      await notifySOC('emergency', {
-        intersectionId: intersectionId,
-        direction: emergencyDirection,
-        vehicleType: emergencyVehicle,
-        org: 'Org2MSP'
-      });
       
       // Update local state
       trafficState.status = 'EMERGENCY';
